@@ -5,6 +5,10 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.BiliTubeWatch = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createWatchModule(UI, Extract) {
+  const T = (key, fallback, substitutions) => {
+    const i18n = typeof globalThis !== 'undefined' && globalThis.BiliTubeI18n;
+    return i18n && typeof i18n.t === 'function' ? i18n.t(key, fallback, substitutions) : fallback;
+  };
   const MAX_RETRIES = 24;
   const REGION_DEFS = [
     { marker: 'bt-watch-native-layout', selectors: ['.video-container-v1', '#mirror-vdcon.video-container-v1', '.video-page-container', '.video-container'] },
@@ -178,13 +182,13 @@
 
     function syncWatchLaterButton(button, active) {
       if (!button) return;
-      const title = active ? '从稍后再看移除' : '稍后再看';
+      const title = active ? T('remove_watch_later','从稍后再看移除') : T('add_watch_later','稍后再看');
       button.classList.toggle('is-active', Boolean(active));
       button.setAttribute('aria-pressed', String(Boolean(active)));
       button.title = title;
       button.setAttribute('aria-label', title);
       const label = button.querySelector('.bt-watchlater-label');
-      if (label) label.textContent = active ? '已加入稍后再看' : '稍后再看';
+      if (label) label.textContent = active ? T('watch_later_added','已加入稍后再看') : T('add_watch_later','稍后再看');
     }
 
     function ensureAuthorRow() {
@@ -211,7 +215,7 @@
         avatarLink.textContent = String(creator.name || 'UP').slice(0, 1);
       }
       const text = UI.e('div', 'bt-watch-author-text');
-      const name = UI.e('a', 'bt-watch-author-name', creator.name || 'UP主');
+      const name = UI.e('a', 'bt-watch-author-name', creator.name || T('uploader','UP主'));
       name.href = creator.href || '#';
       text.append(name);
       identity.append(avatarLink, text);
@@ -219,7 +223,7 @@
 
       const mid = creatorMid(creator);
       if (mid && callbacks.followSpace) {
-        const follow = UI.e('button', `bt-watch-follow${creator.following ? ' is-following' : ''}`, creator.following ? '已关注' : '关注');
+        const follow = UI.e('button', `bt-watch-follow${creator.following ? ' is-following' : ''}`, creator.following ? T('following','已关注') : T('follow','关注'));
         follow.type = 'button';
         follow.addEventListener('click', async () => {
           follow.disabled = true;
@@ -228,7 +232,7 @@
           if (ok) {
             creator.following = !Boolean(creator.following);
             follow.classList.toggle('is-following', Boolean(creator.following));
-            follow.textContent = creator.following ? '已关注' : '关注';
+            follow.textContent = creator.following ? T('following','已关注') : T('follow','关注');
             authorSignature = [creator.name || '', creator.href || '', creator.avatar || '', creator.following ? '1' : '0'].join('|');
           }
         });

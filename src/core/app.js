@@ -15,6 +15,10 @@
   const Actions = window.BiliTubeActions;
   const Watch = window.BiliTubeWatch;
   if (!Policy || !Theme || !Data || !ApiClient || !NativeVisibility || !NativeAdapter || !Extract || !Preview || !Shell || !Actions || !Watch) return;
+  const T = (key, fallback, substitutions) => {
+    const i18n = window.BiliTubeI18n;
+    return i18n && typeof i18n.t === 'function' ? i18n.t(key, fallback, substitutions) : fallback;
+  };
 
   const CLIENT = 'bilitube-content-core';
   const BRIDGE = 'bilitube-bridge-core';
@@ -144,17 +148,17 @@
   }
   function syncVisualStyleButtons() {
     const glassMode=settings.glassMode!==false;
-    const title=glassMode?'切换到原版 YouTube Desktop 风格':'切换到毛玻璃界面';
+    const title=glassMode?T('style_original','切换到原版 YouTube Desktop 风格'):T('style_glass','切换到毛玻璃界面');
     document.querySelectorAll('.bt-style-button').forEach(button=>{button.title=title;button.setAttribute('aria-label',title);button.setAttribute('aria-pressed',String(glassMode));});
   }
   function toggleTheme() { const next=Theme.nextExplicit(effectiveTheme()); persist({theme:next}); applyThemeOnly({ animate:true, viewTransition:false }); }
-  function toggleVisualStyle() { const next=settings.glassMode===false; persist({glassMode:next}); applyThemeOnly({ animate:true, visualStyle:true }); syncVisualStyleButtons(); showToast(next?'已切换到毛玻璃界面':'已切换到原版 YouTube Desktop 风格'); }
+  function toggleVisualStyle() { const next=settings.glassMode===false; persist({glassMode:next}); applyThemeOnly({ animate:true, visualStyle:true }); syncVisualStyleButtons(); showToast(next?T('style_switched_glass','已切换到毛玻璃界面'):T('style_switched_original','已切换到原版 YouTube Desktop 风格')); }
   function openSettings() {
     try {
       chrome.runtime.sendMessage({ source:'bilitube-control', type:'open-options' }, (response) => {
-        if (chrome.runtime.lastError || !response || !response.ok) showToast('无法打开 BiliTube 设置页');
+        if (chrome.runtime.lastError || !response || !response.ok) showToast(T('open_settings_error','无法打开 BiliTube 设置页'));
       });
-    } catch { showToast('无法打开 BiliTube 设置页'); }
+    } catch { showToast(T('open_settings_error','无法打开 BiliTube 设置页')); }
   }
   function toggleSidebar() {
     if(currentContext&&currentContext.strategy==='decorate'){watch.toggleSidebar();return;}
@@ -166,16 +170,16 @@
   async function followSpace(mid, following) {
     const id=String(mid||'').replace(/\D/g,'');
     const csrf=csrfToken();
-    if(!id){showToast('没有读取到 UP 主信息');return false;}
-    if(!csrf){showToast('请先登录 Bilibili');return false;}
+    if(!id){showToast(T('user_info_missing','没有读取到 UP 主信息'));return false;}
+    if(!csrf){showToast(T('login_required','请先登录 Bilibili'));return false;}
     let result=await ApiClient.request('space-follow',{mid:id,following:Boolean(following),csrf});
     if(!result||result.code!==0) result=await bridgeWrite({action:'follow',mid:id,following:Boolean(following),csrf});
-    if(!result||result.code!==0){showToast(result&&result.message?String(result.message):'关注操作失败');return false;}
+    if(!result||result.code!==0){showToast(result&&result.message?String(result.message):T('follow_error','关注操作失败'));return false;}
     const nextFollowing=!Boolean(following);
     const current=profiles.get(id)||{mid:id}; profiles.set(id,{...current,following:nextFollowing});
     searchUsers=searchUsers.map(item=>String(item.mid||'')===id?{...item,following:nextFollowing}:item);
     if(currentContext&&currentContext.strategy==='replace') rerenderCurrentReplace();
-    showToast(following?'已取消关注':'关注成功'); return true;
+    showToast(following?T('unfollow_success','已取消关注'):T('follow_success','关注成功')); return true;
   }
   async function requestSearchSuggestions(term) {
     if(settings.searchSuggestions===false)return [];
@@ -210,10 +214,10 @@
       if(!same)continue;
       button.classList.toggle('is-active',Boolean(active));
       button.setAttribute('aria-pressed',String(Boolean(active)));
-      button.title=active?'从稍后再看移除':'稍后再看';
+      button.title=active?T('remove_watch_later','从稍后再看移除'):T('add_watch_later','稍后再看');
       button.setAttribute('aria-label',button.title);
       const label=button.querySelector('.bt-watchlater-label');
-      if(label)label.textContent=active?'已加入稍后再看':'稍后再看';
+      if(label)label.textContent=active?T('watch_later_added','已加入稍后再看'):T('add_watch_later','稍后再看');
     }
   }
   async function toggleWatchLater(item) {
@@ -221,12 +225,12 @@
     await ensureWatchLaterState();
     const bvid=String(item&&item.bvid||''); const aid=Number(item&&item.aid||0); const current=isWatchLater(item); const next=!current;
     const result=await ApiClient.request('watchlater-toggle',{bvid,aid,add:next,csrf});
-    if(!result||result.code!==0){showToast(result&&result.message?String(result.message):'稍后再看操作失败');return current;}
+    if(!result||result.code!==0){showToast(result&&result.message?String(result.message):T('watch_later_error','稍后再看操作失败'));return current;}
     const resolvedAid=Number(result.aid||aid||0); const resolvedBvid=String(result.bvid||bvid||'');
     if(next){if(resolvedBvid)watchLaterBvids.add(resolvedBvid);if(resolvedAid)watchLaterAids.add(resolvedAid);}
     else {if(resolvedBvid)watchLaterBvids.delete(resolvedBvid);if(resolvedAid)watchLaterAids.delete(resolvedAid);watchLaterVideos=watchLaterVideos.filter(video=>String(video.bvid||'')!==resolvedBvid&&Number(video.aid||0)!==resolvedAid);}
     syncWatchLaterButtons(item,next);
-    showToast(next?'已加入稍后再看':'已从稍后再看移除');
+    showToast(next?T('watch_later_success','已加入稍后再看'):T('watch_later_removed','已从稍后再看移除'));
     if(currentContext&&currentContext.route==='watchlater')rerenderCurrentReplace();
     return next;
   }
@@ -255,26 +259,26 @@
   }
   function requireWatchLogin() {
     const csrf = csrfToken();
-    if (!csrf) { showToast('请先登录 Bilibili'); return ''; }
+    if (!csrf) { showToast(T('login_required','请先登录 Bilibili')); return ''; }
     return csrf;
   }
   async function runAction(action) {
     const ok=Actions.invoke(document,action);
     if(ok)return;
-    showToast('请使用页面上的 Bilibili 原生操作按钮');
+    showToast(T('native_action_hint','请使用页面上的 Bilibili 原生操作按钮'));
   }
   function dialogButton(text, primary=false) {
     const button=document.createElement('button');button.type='button';button.className=primary?'bt-dialog-button is-primary':'bt-dialog-button';button.textContent=text;return button;
   }
   async function clearHistory() {
     const csrf=requireWatchLogin(); if(!csrf)return;
-    const modal=window.BiliTubeUI.createDialog('清除观看记录');modal.body.append(Object.assign(document.createElement('p'),{textContent:'将清除全部 Bilibili 观看记录。此操作无法撤销。'}));
-    const cancel=dialogButton('取消'),confirm=dialogButton('清除',true);modal.footer.append(cancel,confirm);cancel.addEventListener('click',modal.close);confirm.addEventListener('click',async()=>{confirm.disabled=true;const result=await ApiClient.request('history-clear',{csrf});confirm.disabled=false;if(result&&result.code===0){historyVideos=[];historyHasMore=false;rerenderCurrentReplace();modal.close();showToast('观看记录已清除');}else showToast(result&&result.message||'清除失败');});document.body.append(modal.backdrop);
+    const modal=window.BiliTubeUI.createDialog(T('clear_history_title','清除观看记录'));modal.body.append(Object.assign(document.createElement('p'),{textContent:T('clear_history_description','将清除全部 Bilibili 观看记录。此操作无法撤销。')}));
+    const cancel=dialogButton(T('cancel','取消')),confirm=dialogButton(T('clear','清除'),true);modal.footer.append(cancel,confirm);cancel.addEventListener('click',modal.close);confirm.addEventListener('click',async()=>{confirm.disabled=true;const result=await ApiClient.request('history-clear',{csrf});confirm.disabled=false;if(result&&result.code===0){historyVideos=[];historyHasMore=false;rerenderCurrentReplace();modal.close();showToast(T('history_cleared','观看记录已清除'));}else showToast(result&&result.message||T('clear_failed','清除失败'));});document.body.append(modal.backdrop);
   }
   async function toggleHistoryPause() {
     const csrf=requireWatchLogin(); if(!csrf)return;
     const next=!historyPaused;const result=await ApiClient.request('history-toggle',{paused:next,csrf});
-    if(result&&result.code===0){historyPaused=next;rerenderCurrentReplace();showToast(next?'已暂停观看记录':'已开启观看记录');}else showToast(result&&result.message||'设置失败');
+    if(result&&result.code===0){historyPaused=next;rerenderCurrentReplace();showToast(next?T('history_paused','已暂停观看记录'):T('history_resumed','已开启观看记录'));}else showToast(result&&result.message||T('settings_failed','设置失败'));
   }
   const callbacks={ toggleTheme,toggleVisualStyle,toggleSidebar,openSettings,bindPreview,beforeRender:()=>preview.destroy(),followSpace,requestSearchSuggestions,action:runAction,clearHistory,toggleHistoryPause,toggleWatchLater,isWatchLater,showWatchLaterQuick:()=>settings.watchLaterQuick!==false,showCardAuthor:()=>settings.showCardAuthor!==false,showCardMeta:()=>settings.showCardMeta!==false };
 
@@ -378,7 +382,7 @@
     }
     else if (type==='home-category') {
       homeCategoryLoading=false;
-      if (!payload || payload.code!==0) { homeCategoryVideos=[]; homeCategoryError='该分类暂时无法读取'; }
+      if (!payload || payload.code!==0) { homeCategoryVideos=[]; homeCategoryError=T('home_category_unavailable','该分类暂时无法读取'); }
       else { homeCategoryVideos=Data.normalizeHomeCategory(payload,params.category); homeCategoryError=''; }
     }
     else if (type==='home-sections') {
@@ -387,16 +391,16 @@
       const bangumi=Data.normalizeBangumiShelf(payload&&payload.bangumi).slice(0,12);
       const popular=Data.normalizePopularShelf(payload&&payload.popular).slice(0,12);
       homeShelves=[
-        { key:'following', title:'来自你的关注', href:'https://t.bilibili.com/', items:followed },
-        { key:'live', title:'正在直播', href:'https://live.bilibili.com/', items:live },
-        { key:'bangumi', title:'番剧 · 最近更新', href:'https://www.bilibili.com/anime/', items:bangumi },
-        { key:'popular', title:'热门', href:'https://www.bilibili.com/v/popular/all/', items:popular },
+        { key:'following', title:T('following_shelf','来自你的关注'), href:'https://t.bilibili.com/', items:followed },
+        { key:'live', title:T('live_now','正在直播'), href:'https://live.bilibili.com/', items:live },
+        { key:'bangumi', title:T('recent_anime','番剧 · 最近更新'), href:'https://www.bilibili.com/anime/', items:bangumi },
+        { key:'popular', title:T('popular','热门'), href:'https://www.bilibili.com/v/popular/all/', items:popular },
       ].filter(section=>section.items.length);
     }
     else if (type==='search') {
       searchLoading=false;
       const category=String(params.category||'all');
-      if(!payload || payload.code!==0){searchHasMore=false;searchError='搜索接口暂时不可用，已保留页面内结果作为兜底';}
+      if(!payload || payload.code!==0){searchHasMore=false;searchError=T('search_unavailable','搜索接口暂时不可用，已保留页面内结果作为兜底');}
       else {
         let results=[]; let users=[]; let rawForPaging=payload;
         if(category==='all'){
@@ -418,7 +422,7 @@
     else if (type==='subscriptions') subscriptions=Data.normalizeSubscriptions(payload);
     else if (type==='history') {
       historyLoading=false;
-      if(!payload || payload.code!==0){historyHasMore=false;historyError=payload&&payload.code===-101?'请先登录 Bilibili 后再查看历史记录':'历史记录读取失败，可使用右侧按钮打开 B站原生历史管理';}
+      if(!payload || payload.code!==0){historyHasMore=false;historyError=payload&&payload.code===-101?T('history_login_error','请先登录 Bilibili 后再查看历史记录'):T('history_load_error','历史记录读取失败，可使用右侧按钮打开 B站原生历史管理');}
       else {
         const list=Data.normalizeHistory(payload);const merged=params.append?mergeUnique(historyVideos,list,item=>`${item.href}|${item.viewedAt}`):{items:list,added:list.length};historyVideos=merged.items;historyError='';
         const cursor=payload.data&&payload.data.cursor||{};historyCursor={max:Number(cursor.max||0),business:String(cursor.business||''),viewAt:Number(cursor.view_at||0)};
@@ -427,7 +431,7 @@
     }
     else if (type==='dynamic') {
       dynamicLoading=false;
-      if(!payload || payload.code!==0){dynamicHasMore=false;dynamicError=payload&&payload.code===-101?'请先登录 Bilibili 后再查看动态':'动态读取失败';}
+      if(!payload || payload.code!==0){dynamicHasMore=false;dynamicError=payload&&payload.code===-101?T('dynamic_login_error','请先登录 Bilibili 后再查看动态'):T('dynamic_load_error','动态读取失败');}
       else {
         const list=Data.normalizeDynamic(payload);const merged=params.append?mergeUnique(dynamicItems,list,item=>item.id||item.video&&item.video.bvid||`${item.author}|${item.time}|${item.text}`):{items:list,added:list.length};dynamicItems=merged.items;dynamicSubscriptions=Data.normalizeDynamicSubscriptions(dynamicItems);dynamicError='';
         dynamicOffset=String(payload.data&&payload.data.offset||'');dynamicHasMore=Boolean(payload.data&&payload.data.has_more)&&list.length>0&&merged.added>0&&Boolean(dynamicOffset);
@@ -443,14 +447,14 @@
       const raw=archivePayloads.get(mid); if(raw && !(archives.get(mid)||[]).length) archives.set(mid,Data.normalizeSpaceArchives(raw,mid,profile||{}));
     } else if (type==='space-archives') {
       const mid=String(params.mid||''); spaceLoading.set(mid,false);
-      if(!payload || payload.code!==0){spaceHasMore.set(mid,false);spaceError.set(mid,'投稿接口暂时不可用，已保留 B站页面数据兜底');}
+      if(!payload || payload.code!==0){spaceHasMore.set(mid,false);spaceError.set(mid,T('space_unavailable','投稿接口暂时不可用，已保留 B站页面数据兜底'));}
       else {
         const list=Data.normalizeSpaceArchives(payload,mid,profiles.get(mid)||{}); const current=archives.get(mid)||[]; const merged=params.append?mergeUnique(current,list,item=>item.bvid||item.href):{items:list,added:list.length}; archives.set(mid,merged.items); spaceError.set(mid,'');
         const page=Math.max(1,Number(params.page||1)); spacePage.set(mid,page); const count=Number(payload.data&&payload.data.page&&payload.data.page.count||0); spaceHasMore.set(mid,count?page*30<count:list.length>=30&&merged.added>0);
       }
     } else if (type==='favorites') {
       favoriteLoading=false; favoriteFolders=Data.normalizeFavoriteFolders(payload&&payload.folders); favoriteSelectedId=String(payload&&payload.mediaId||favoriteSelectedId||'');
-      if(!payload || !payload.resources || payload.resources.code!==0){favoriteHasMore=false;favoriteError='收藏夹读取失败';}
+      if(!payload || !payload.resources || payload.resources.code!==0){favoriteHasMore=false;favoriteError=T('favorites_load_error','收藏夹读取失败');}
       else { const list=Data.normalizeFavoriteResources(payload.resources); const merged=params.append?mergeUnique(favoriteVideos,list,item=>item.bvid||item.href):{items:list,added:list.length}; favoriteVideos=merged.items; favoritePage=Math.max(1,Number(payload.page||params.page||1)); favoriteHasMore=Boolean(payload.hasMore)&&merged.added>0; favoriteError=''; }
     }
     if (!currentContext) return;

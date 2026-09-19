@@ -89,7 +89,7 @@ node scripts/verify.mjs
 4. `git diff --check` 没有空白错误。
 5. 手动验收中所有“实机”项目有记录；未验证项目不要写成“已支持”。
 6. README、CHANGELOG、LICENSE、CITATION.cff、隐私说明和截图与当前源码一致。
-7. 压缩包中包含 `manifest.json`、`src/`、`assets/` 和运行所需文件，不包含 `output/`、`.playwright-cli/`、测试缓存、个人配置或登录信息。
+7. 压缩包中包含 `manifest.json`、`_locales/`、`src/`、`assets/` 和运行所需文件，不包含 `output/`、`.playwright-cli/`、测试缓存、个人配置或登录信息。
 8. 解压发布包到全新目录后，再走一遍“加载已解压的扩展”流程。
 
 ## Suggested packaging on Windows
@@ -100,7 +100,7 @@ node scripts/verify.mjs
 $release = Join-Path (Get-Location) 'release\BiliTube-v0.12.4'
 New-Item -ItemType Directory -Force -Path $release | Out-Null
 Copy-Item manifest.json,LICENSE,README.md,CHANGELOG.md,PAGE_AUDIT.md -Destination $release
-Copy-Item assets,src -Destination $release -Recurse
+Copy-Item _locales,assets,src -Destination $release -Recurse
 Compress-Archive -Path (Join-Path $release '*') -DestinationPath (Join-Path (Split-Path $release) 'BiliTube-v0.12.4.zip') -Force
 ```
 

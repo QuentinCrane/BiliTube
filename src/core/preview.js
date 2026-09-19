@@ -4,6 +4,10 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.BiliTubePreview = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createPreviewModule(Model) {
+  const T = (key, fallback, substitutions) => {
+    const i18n = typeof globalThis !== 'undefined' && globalThis.BiliTubeI18n;
+    return i18n && typeof i18n.t === 'function' ? i18n.t(key, fallback, substitutions) : fallback;
+  };
   function createController(options = {}) {
     const requestMedia = options.requestMedia || (() => {});
     const getDelay = options.getDelay || (() => 500);
@@ -46,7 +50,7 @@
       const progress = document.createElement('div');
       progress.className = 'bt-preview-progress';
       progress.setAttribute('role', 'slider');
-      progress.setAttribute('aria-label', '预览进度');
+      progress.setAttribute('aria-label', T('preview_progress','预览进度'));
       progress.setAttribute('aria-valuemin', '0');
       progress.setAttribute('aria-valuemax', '100');
       progress.setAttribute('aria-valuenow', '0');

@@ -11,6 +11,32 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 if (manifest.manifest_version !== 3) fail('manifest_version must be 3');
 else pass('Manifest V3');
+if (manifest.default_locale !== 'zh_CN') fail('default_locale must be zh_CN');
+else pass('default locale is zh_CN');
+
+const localeDirs = ['_locales/zh_CN', '_locales/en'];
+const localeMessages = new Map();
+for (const dir of localeDirs) {
+  const file = path.join(root, dir, 'messages.json');
+  if (!fs.existsSync(file)) { fail(`missing locale resource: ${dir}/messages.json`); continue; }
+  try {
+    const messages = JSON.parse(fs.readFileSync(file, 'utf8'));
+    localeMessages.set(dir, messages);
+    if (!Object.keys(messages).length) fail(`locale is empty: ${dir}`);
+  } catch (error) {
+    fail(`invalid locale JSON: ${dir}/messages.json (${error.message})`);
+  }
+}
+const defaultMessages = localeMessages.get('_locales/zh_CN');
+if (defaultMessages) {
+  for (const dir of localeDirs.slice(1)) {
+    const messages = localeMessages.get(dir);
+    if (!messages) continue;
+    for (const key of Object.keys(defaultMessages)) if (!messages[key]) fail(`missing locale key ${key}: ${dir}`);
+    for (const key of Object.keys(messages)) if (!defaultMessages[key]) fail(`unexpected locale key ${key}: ${dir}`);
+  }
+  if (!process.exitCode) pass(`locale resources are complete (${localeDirs.join(', ')})`);
+}
 
 const refs = new Set();
 for (const script of manifest.content_scripts || []) {

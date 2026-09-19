@@ -2,6 +2,18 @@
 
 if (typeof importScripts === 'function') importScripts('core/wbi.js');
 
+function t(key, fallback, substitutions) {
+  try {
+    const getMessage = typeof chrome !== 'undefined' && chrome.i18n && chrome.i18n.getMessage;
+    if (typeof getMessage === 'function') {
+      const values = Array.isArray(substitutions) ? substitutions : substitutions == null ? [] : [String(substitutions)];
+      const message = getMessage.call(chrome.i18n, key, values);
+      if (message) return message;
+    }
+  } catch {}
+  return fallback;
+}
+
 const cache = new Map();
 function cached(key, ttl, loader) {
   const now = Date.now();
@@ -113,7 +125,7 @@ async function handle(type, params = {}) {
   if (type === 'home-category') {
     const category = String(params.category || '');
     const rid = Number(HOME_REGION_RIDS[category] || 0);
-    if (!rid) return { code:-400, message:'不支持的首页分类', data:{ list:[] } };
+    if (!rid) return { code:-400, message:t('unsupported_home_category','不支持的首页分类'), data:{ list:[] } };
     const key = `home-category:${category}`;
     return cached(key, 15000, () => first([
       `https://api.bilibili.com/x/web-interface/ranking/v2?rid=${rid}&type=all`,
@@ -184,14 +196,14 @@ async function handle(type, params = {}) {
   if (type === 'history-status') return json('https://api.bilibili.com/x/v2/history/shadow');
   if (type === 'history-clear') {
     const csrf = String(params.csrf || '').trim();
-    if (!csrf) return { code:-101, message:'请先登录 Bilibili' };
+    if (!csrf) return { code:-101, message:t('login_required','请先登录 Bilibili') };
     const result = await postForm('https://api.bilibili.com/x/v2/history/clear', { csrf });
     cache.clear();
     return result;
   }
   if (type === 'history-toggle') {
     const csrf = String(params.csrf || '').trim();
-    if (!csrf) return { code:-101, message:'请先登录 Bilibili' };
+    if (!csrf) return { code:-101, message:t('login_required','请先登录 Bilibili') };
     const paused = Boolean(params.paused);
     const result = await postForm('https://api.bilibili.com/x/v2/history/shadow/set', { switch:paused ? 1 : 0, csrf });
     cache.delete('history-status');
@@ -212,12 +224,12 @@ async function handle(type, params = {}) {
     const identity = await resolveVideoIdentity(params);
     const aid = digits(identity && identity.aid);
     const bvid = validBvid(identity && identity.bvid || params.bvid);
-    if (!csrf || !aid) return { code:-101, message:'请先登录 Bilibili', aid:Number(aid||0), bvid };
+    if (!csrf || !aid) return { code:-101, message:t('login_required','请先登录 Bilibili'), aid:Number(aid||0), bvid };
     const add = params.add !== false;
     const endpoint = add ? 'https://api.bilibili.com/x/v2/history/toview/add' : 'https://api.bilibili.com/x/v2/history/toview/del';
     const result = await postForm(endpoint, { aid, csrf });
     if (result && result.code === 0) cache.delete('watchlater');
-    return { ...(result || { code:-1, message:'请求失败' }), aid:Number(aid), bvid };
+    return { ...(result || { code:-1, message:t('request_failed','请求失败') }), aid:Number(aid), bvid };
   }
   if (type === 'space-profile') {
     const mid = digits(params.mid); if (!mid) return null;
@@ -225,7 +237,7 @@ async function handle(type, params = {}) {
   }
   if (type === 'space-follow') {
     const fid = digits(params.mid); const csrf = String(params.csrf || '').trim();
-    if (!fid || !csrf) return { code:-101, message:'请先登录 Bilibili' };
+    if (!fid || !csrf) return { code:-101, message:t('login_required','请先登录 Bilibili') };
     const following = Boolean(params.following);
     const result = await postForm('https://api.bilibili.com/x/relation/modify', { fid, act:following ? 2 : 1, re_src:11, csrf });
     if (result && result.code === 0) cache.delete(`space-profile:${fid}`);
@@ -263,7 +275,7 @@ async function handle(type, params = {}) {
   }
   if (type === 'watch-comments') {
     const { aid } = await resolveVideoIdentity(params);
-    if (!aid) return { code:-400, message:'缺少视频 aid', data:{ replies:[], cursor:{ all_count:0 } } };
+    if (!aid) return { code:-400, message:t('missing_video_aid','缺少视频 aid'), data:{ replies:[], cursor:{ all_count:0 } } };
     const pagination = typeof params.pagination === 'string' ? params.pagination : '';
     const paginationStr = JSON.stringify({ offset:pagination });
     const wbiParams = { oid:aid, type:1, mode:3, pagination_str:paginationStr, plat:1, seek_rpid:'', web_location:1315875 };
@@ -274,13 +286,13 @@ async function handle(type, params = {}) {
     const { aid } = await resolveVideoIdentity(params);
     const csrf = String(params.csrf || '').trim();
     const message = String(params.message || '').trim();
-    if (!aid || !csrf || !message) return { code:-400, message:'缺少评论参数' };
+    if (!aid || !csrf || !message) return { code:-400, message:t('missing_comment_params','缺少评论参数') };
     return postForm('https://api.bilibili.com/x/v2/reply/add', { type:1, oid:aid, message, csrf });
   }
   if (type === 'watch-favorite-folders') {
     const mid = digits(params.mid);
     const { aid } = await resolveVideoIdentity(params);
-    if (!mid) return { code:-101, message:'请先登录 Bilibili', data:{ list:[] } };
+    if (!mid) return { code:-101, message:t('login_required','请先登录 Bilibili'), data:{ list:[] } };
     const query = new URLSearchParams({ up_mid:mid });
     if (aid) { query.set('rid', aid); query.set('type', '2'); }
     return json(`https://api.bilibili.com/x/v3/fav/folder/created/list-all?${query}`);
@@ -290,7 +302,7 @@ async function handle(type, params = {}) {
     const csrf = String(params.csrf || '').trim();
     const identity = await resolveVideoIdentity(params);
     const { aid, bvid } = identity;
-    if (!csrf || (!aid && !bvid)) return { code:-101, message:'请先登录 Bilibili' };
+    if (!csrf || (!aid && !bvid)) return { code:-101, message:t('login_required','请先登录 Bilibili') };
     let result = null;
     if (action === 'like') {
       result = await postForm('https://api.bilibili.com/x/web-interface/archive/like', { aid, bvid, like:params.active ? 2 : 1, csrf });
@@ -300,16 +312,16 @@ async function handle(type, params = {}) {
       const multiply = Math.max(1, Math.min(2, Number(params.multiply || 1) || 1));
       result = await postForm('https://api.bilibili.com/x/web-interface/coin/add', { aid, bvid, multiply, select_like:params.selectLike ? 1 : 0, csrf });
     } else if (action === 'favorite') {
-      if (!aid) return { code:-400, message:'收藏操作缺少 aid' };
+      if (!aid) return { code:-400, message:t('favorite_missing_aid','收藏操作缺少 aid') };
       const add = Array.isArray(params.addMediaIds) ? params.addMediaIds.map(digits).filter(Boolean).join(',') : String(params.addMediaIds || '');
       const del = Array.isArray(params.delMediaIds) ? params.delMediaIds.map(digits).filter(Boolean).join(',') : String(params.delMediaIds || '');
       result = await postForm('https://api.bilibili.com/x/v3/fav/resource/deal', { rid:aid, type:2, add_media_ids:add, del_media_ids:del, csrf });
     } else {
-      return { code:-400, message:'不支持的操作' };
+      return { code:-400, message:t('unsupported_operation','不支持的操作') };
     }
     if (result && result.code === 0) cache.clear();
     const view = result && result.code === 0 ? await freshView(bvid, aid) : null;
-    return { ...(result || { code:-1, message:'请求失败' }), view };
+    return { ...(result || { code:-1, message:t('request_failed','请求失败') }), view };
   }
   if (type === 'preview') {
     const bvid = validBvid(params.bvid);

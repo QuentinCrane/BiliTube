@@ -4,6 +4,10 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.BiliTubeExtract = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createExtract(Data) {
+  const T = (key, fallback, substitutions) => {
+    const i18n = typeof globalThis !== 'undefined' && globalThis.BiliTubeI18n;
+    return i18n && typeof i18n.t === 'function' ? i18n.t(key, fallback, substitutions) : fallback;
+  };
   const abs = Data && Data.absoluteUrl ? Data.absoluteUrl : (value) => String(value || '');
   function text(node) { return node ? String(node.textContent || '').replace(/\s+/g, ' ').trim() : ''; }
   function imageSource(node) { return node ? (node.currentSrc || node.src || node.getAttribute('data-src') || node.getAttribute('data-lazy-src') || '') : ''; }
@@ -101,9 +105,9 @@
     return {
       title: bridgeVideo && bridgeVideo.title || (titleNode && (titleNode.getAttribute('title') || text(titleNode))) || document.title.replace(/_哔哩哔哩.*$/,'').trim(),
       description: bridgeVideo && bridgeVideo.desc || text(descNode),
-      meta: stat.view ? `${Data.compactNumber(stat.view)}播放` : text(statNode),
+      meta: stat.view ? `${Data.compactNumber(stat.view)}${T('views','播放')}` : text(statNode),
       creator: {
-        name: owner.name || text(creatorAnchor) || 'UP主',
+        name: owner.name || text(creatorAnchor) || T('uploader','UP主'),
         href: creatorHref,
         avatar: owner.face || imageSource(avatar),
         following,

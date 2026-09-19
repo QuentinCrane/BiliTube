@@ -3,111 +3,112 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>BiliTube 设置</title>
+  <title data-i18n="settings_page_title">BiliTube 设置</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
   <header class="settings-topbar">
-    <a class="settings-brand" href="https://www.bilibili.com/" target="_blank" rel="noreferrer">
-      <span class="settings-brand-mark">▶</span><strong>BiliTube</strong>
+    <a class="settings-brand" href="https://www.bilibili.com/" target="_blank" rel="noreferrer" aria-label="BiliTube">
+      <span class="settings-brand-mark"><img src="../../assets/icon.svg" alt="" aria-hidden="true"></span><strong data-i18n="settings_brand">BiliTube</strong>
     </a>
-    <span class="settings-title">设置</span>
+    <span class="settings-title" data-i18n="settings">设置</span>
   </header>
 
   <div class="settings-shell">
-    <aside class="settings-nav" aria-label="设置导航">
-      <div class="settings-nav-title">设置</div>
-      <a class="is-active" href="#appearance">外观</a>
-      <a href="#navigation">导航</a>
-      <a href="#home">首页</a>
-      <a href="#playback">播放与预览</a>
-      <a href="#interaction">交互与动效</a>
-      <a href="#cards">卡片信息</a>
-      <a href="#search">搜索</a>
-      <a href="#content">内容</a>
+    <aside class="settings-nav" aria-label="设置导航" data-i18n-attr="aria-label:settings_nav_label">
+      <div class="settings-nav-title" data-i18n="settings">设置</div>
+      <a class="is-active" href="#appearance" data-i18n="appearance">外观</a>
+      <a href="#navigation" data-i18n="navigation">导航</a>
+      <a href="#home" data-i18n="home_section">首页</a>
+      <a href="#playback" data-i18n="playback">播放与预览</a>
+      <a href="#interaction" data-i18n="interaction">交互与动效</a>
+      <a href="#cards" data-i18n="cards">卡片信息</a>
+      <a href="#search" data-i18n="search_section">搜索</a>
+      <a href="#content" data-i18n="content">内容</a>
       <div class="settings-nav-divider"></div>
-      <p>v0.11.0<br>YouTube Desktop Parity</p>
+      <p data-i18n="version_label">v0.12.4<br>YouTube Desktop visual layer</p>
     </aside>
 
     <main class="settings">
       <header class="page-head">
-        <h1>设置</h1>
-        <p>调整 BiliTube 在 Bilibili 上的 YouTube Desktop 风格与行为。</p>
+        <h1 data-i18n="settings">设置</h1>
+        <p data-i18n="settings_intro">调整 BiliTube 在 Bilibili 上的 YouTube Desktop 风格与行为。</p>
       </header>
 
       <section class="group" id="appearance">
-        <div class="group-head"><h2>外观</h2><p>控制整站基础状态、界面材质与统一主题。</p></div>
+        <div class="group-head"><h2 data-i18n="appearance">外观</h2><p data-i18n="appearance_desc">控制整站基础状态、界面材质与统一主题。</p></div>
         <div class="card">
-          <label class="row"><span><strong>启用 BiliTube</strong><small>关闭后恢复原版 Bilibili 页面。</small></span><input id="enabled" type="checkbox"></label>
-          <label class="row"><span><strong>毛玻璃界面</strong><small>在毛玻璃界面和原版 YouTube Desktop 风格之间切换，不会关闭 BiliTube 功能。</small></span><input id="glassMode" type="checkbox" aria-label="启用毛玻璃界面"></label>
-          <label class="row"><span><strong>主题</strong><small>顶栏、侧栏和 BiliTube 重绘页面同步切换。</small></span><select id="theme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
+          <label class="row"><span><strong data-i18n="enabled">启用 BiliTube</strong><small data-i18n="enabled_desc">关闭后恢复原版 Bilibili 页面。</small></span><input id="enabled" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="glass_mode">毛玻璃界面</strong><small data-i18n="glass_mode_desc">在毛玻璃界面和原版 YouTube Desktop 风格之间切换，不会关闭 BiliTube 功能。</small></span><input id="glassMode" type="checkbox" aria-label="启用毛玻璃界面" data-i18n-attr="aria-label:glass_mode"></label>
+          <label class="row"><span><strong data-i18n="theme">主题</strong><small data-i18n="theme_desc">顶栏、侧栏和 BiliTube 重绘页面同步切换。</small></span><select id="theme"><option value="system" data-i18n="theme_system">跟随系统</option><option value="light" data-i18n="theme_light">浅色</option><option value="dark" data-i18n="theme_dark">深色</option></select></label>
         </div>
       </section>
 
       <section class="group" id="navigation">
-        <div class="group-head"><h2>导航</h2><p>控制 YouTube 风左侧导航和订阅列表。</p></div>
+        <div class="group-head"><h2 data-i18n="navigation">导航</h2><p data-i18n="navigation_desc">控制 YouTube 风左侧导航和订阅列表。</p></div>
         <div class="card">
-          <label class="row"><span><strong>默认折叠侧栏</strong><small>重绘页面默认使用 72px 紧凑侧栏；视频等原生页面仍通过菜单打开抽屉。</small></span><input id="sidebarCollapsed" type="checkbox"></label>
-          <label class="row"><span><strong>显示订阅列表</strong><small>在左侧栏显示近期订阅 UP 主和直播状态。</small></span><input id="showSubscriptions" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="sidebar_collapsed">默认折叠侧栏</strong><small data-i18n="sidebar_collapsed_desc">重绘页面默认使用 72px 紧凑侧栏；视频等原生页面仍通过菜单打开抽屉。</small></span><input id="sidebarCollapsed" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="show_subscriptions">显示订阅列表</strong><small data-i18n="show_subscriptions_desc">在左侧栏显示近期订阅 UP 主和直播状态。</small></span><input id="showSubscriptions" type="checkbox"></label>
         </div>
       </section>
 
       <section class="group" id="home">
-        <div class="group-head"><h2>首页</h2><p>决定 YouTube 风推荐流中穿插哪些 Bilibili 特色 Shelf。</p></div>
+        <div class="group-head"><h2 data-i18n="home_section">首页</h2><p data-i18n="home_desc">决定 YouTube 风推荐流中穿插哪些 Bilibili 特色 Shelf。</p></div>
         <div class="card">
-          <label class="row"><span><strong>关注更新</strong><small>显示“来自你的关注”横向 Shelf。</small></span><input id="homeFollowedShelf" type="checkbox"></label>
-          <label class="row"><span><strong>正在直播</strong><small>显示直播推荐 Shelf。</small></span><input id="homeLiveShelf" type="checkbox"></label>
-          <label class="row"><span><strong>番剧最近更新</strong><small>显示番剧更新 Shelf。</small></span><input id="homeBangumiShelf" type="checkbox"></label>
-          <label class="row"><span><strong>热门内容</strong><small>显示热门视频 Shelf。</small></span><input id="homePopularShelf" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="home_followed">关注更新</strong><small data-i18n="home_followed_desc">显示“来自你的关注”横向 Shelf。</small></span><input id="homeFollowedShelf" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="home_live">正在直播</strong><small data-i18n="home_live_desc">显示直播推荐 Shelf。</small></span><input id="homeLiveShelf" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="home_bangumi">番剧最近更新</strong><small data-i18n="home_bangumi_desc">显示番剧更新 Shelf。</small></span><input id="homeBangumiShelf" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="home_popular">热门内容</strong><small data-i18n="home_popular_desc">显示热门视频 Shelf。</small></span><input id="homePopularShelf" type="checkbox"></label>
         </div>
       </section>
 
       <section class="group" id="playback">
-        <div class="group-head"><h2>播放与预览</h2><p>播放页业务交互保持 Bilibili 原生，卡片预览由 BiliTube 提供。</p></div>
+        <div class="group-head"><h2 data-i18n="playback">播放与预览</h2><p data-i18n="playback_desc">播放页业务交互保持 Bilibili 原生，卡片预览由 BiliTube 提供。</p></div>
         <div class="card">
-          <label class="row"><span><strong>Hover 视频预览</strong><small>鼠标悬浮缩略图时播放无声预览，并保留底部拖动进度条。</small></span><input id="hoverPreview" type="checkbox"></label>
-          <label class="row"><span><strong>预览启动延迟</strong><small>避免鼠标快速扫过卡片时频繁请求视频。</small></span><select id="hoverPreviewDelay"><option value="250">250 ms</option><option value="500">500 ms</option><option value="750">750 ms</option></select></label>
-          <label class="row"><span><strong>稍后再看快捷按钮</strong><small>Hover 视频缩略图时，在右上角显示 YouTube 式时钟按钮。</small></span><input id="watchLaterQuick" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="hover_preview">Hover 视频预览</strong><small data-i18n="hover_preview_desc">鼠标悬浮缩略图时播放无声预览，并保留底部拖动进度条。</small></span><input id="hoverPreview" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="preview_delay">预览启动延迟</strong><small data-i18n="preview_delay_desc">避免鼠标快速扫过卡片时频繁请求视频。</small></span><select id="hoverPreviewDelay" aria-label="预览启动延迟" data-i18n-attr="aria-label:preview_delay"><option value="250">250 ms</option><option value="500">500 ms</option><option value="750">750 ms</option></select></label>
+          <label class="row"><span><strong data-i18n="watch_later_quick">稍后再看快捷按钮</strong><small data-i18n="watch_later_quick_desc">Hover 视频缩略图时，在右上角显示 YouTube 式时钟按钮。</small></span><input id="watchLaterQuick" type="checkbox"></label>
         </div>
       </section>
 
       <section class="group" id="interaction">
-        <div class="group-head"><h2>交互与动效</h2><p>控制页面密度和动画反馈的强弱，原生播放器操作不受影响。</p></div>
+        <div class="group-head"><h2 data-i18n="interaction">交互与动效</h2><p data-i18n="interaction_desc">控制页面密度和动画反馈的强弱，原生播放器操作不受影响。</p></div>
         <div class="card">
-          <label class="row"><span><strong>页面密度</strong><small>紧凑模式会缩小卡片间距、侧栏行高和内容留白。</small></span><select id="density"><option value="comfortable">舒适</option><option value="compact">紧凑</option></select></label>
-          <label class="row"><span><strong>动效强度</strong><small>选择完整、轻量或关闭 BiliTube 外层过渡与悬停动画。</small></span><select id="motionMode"><option value="full">完整</option><option value="subtle">轻量</option><option value="none">关闭</option></select></label>
+          <label class="row"><span><strong data-i18n="density">页面密度</strong><small data-i18n="density_desc">紧凑模式会缩小卡片间距、侧栏行高和内容留白。</small></span><select id="density"><option value="comfortable" data-i18n="density_comfortable">舒适</option><option value="compact" data-i18n="density_compact">紧凑</option></select></label>
+          <label class="row"><span><strong data-i18n="motion">动效强度</strong><small data-i18n="motion_desc">选择完整、轻量或关闭 BiliTube 外层过渡与悬停动画。</small></span><select id="motionMode"><option value="full" data-i18n="motion_full">完整</option><option value="subtle" data-i18n="motion_subtle">轻量</option><option value="none" data-i18n="motion_none">关闭</option></select></label>
         </div>
       </section>
 
       <section class="group" id="cards">
-        <div class="group-head"><h2>卡片信息</h2><p>调整推荐、搜索和频道卡片里显示的辅助信息。</p></div>
+        <div class="group-head"><h2 data-i18n="cards">卡片信息</h2><p data-i18n="cards_desc">调整推荐、搜索和频道卡片里显示的辅助信息。</p></div>
         <div class="card">
-          <label class="row"><span><strong>显示作者信息</strong><small>显示 UP 主头像和作者名，关闭后保留标题与缩略图。</small></span><input id="showCardAuthor" type="checkbox"></label>
-          <label class="row"><span><strong>显示观看数据</strong><small>显示观看数、发布时间等卡片元数据。</small></span><input id="showCardMeta" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="show_author">显示作者信息</strong><small data-i18n="show_author_desc">显示 UP 主头像和作者名，关闭后保留标题与缩略图。</small></span><input id="showCardAuthor" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="show_meta">显示观看数据</strong><small data-i18n="show_meta_desc">显示观看数、发布时间等卡片元数据。</small></span><input id="showCardMeta" type="checkbox"></label>
         </div>
       </section>
 
       <section class="group" id="search">
-        <div class="group-head"><h2>搜索</h2><p>保留 Bilibili 官方搜索结构，再用 YouTube 风结果页展示。</p></div>
+        <div class="group-head"><h2 data-i18n="search_section">搜索</h2><p data-i18n="search_desc">保留 Bilibili 官方搜索结构，再用 YouTube 风结果页展示。</p></div>
         <div class="card">
-          <label class="row"><span><strong>实时搜索建议</strong><small>输入关键词约 180ms 后显示 Bilibili 官方联想词。</small></span><input id="searchSuggestions" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="search_suggestions">实时搜索建议</strong><small data-i18n="search_suggestions_desc">输入关键词约 180ms 后显示 Bilibili 官方联想词。</small></span><input id="searchSuggestions" type="checkbox"></label>
         </div>
       </section>
 
       <section class="group" id="content">
-        <div class="group-head"><h2>内容</h2><p>控制 BiliTube 对页面非核心内容的处理。</p></div>
+        <div class="group-head"><h2 data-i18n="content">内容</h2><p data-i18n="content_desc">控制 BiliTube 对页面非核心内容的处理。</p></div>
         <div class="card">
-          <label class="row"><span><strong>隐藏已识别广告位</strong><small>隐藏已识别的 B站广告卡和横幅，不影响普通推荐内容。</small></span><input id="hideAds" type="checkbox"></label>
+          <label class="row"><span><strong data-i18n="hide_ads">隐藏已识别广告位</strong><small data-i18n="hide_ads_desc">隐藏已识别的 B站广告卡和横幅，不影响普通推荐内容。</small></span><input id="hideAds" type="checkbox"></label>
         </div>
       </section>
 
-      <section class="about-card" aria-label="播放页兼容说明">
-        <strong>Native-first 播放页</strong>
-        <p>播放器、UP、关注、点赞 / 投币 / 收藏 / 分享、简介、评论和相关推荐始终留在 Bilibili 原来的 DOM 中。BiliTube 只做 YouTube Desktop 风格的外层排版与安全的视觉修饰。</p>
+      <section class="about-card" aria-label="播放页兼容说明" data-i18n-attr="aria-label:native_first_title">
+        <strong data-i18n="native_first_title">Native-first 播放页</strong>
+        <p data-i18n="native_first_description">播放器、UP、关注、点赞 / 投币 / 收藏 / 分享、简介、评论和相关推荐始终留在 Bilibili 原来的 DOM 中。BiliTube 只做 YouTube Desktop 风格的外层排版与安全的视觉修饰。</p>
       </section>
     </main>
   </div>
-  <div id="status" role="status"></div>
+  <div id="status" role="status" aria-live="polite"></div>
+  <script src="../core/i18n.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

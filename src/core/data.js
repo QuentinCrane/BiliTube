@@ -3,6 +3,10 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.BiliTubeData = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createData() {
+  const T = (key, fallback, substitutions) => {
+    const i18n = typeof globalThis !== 'undefined' && globalThis.BiliTubeI18n;
+    return i18n && typeof i18n.t === 'function' ? i18n.t(key, fallback, substitutions) : fallback;
+  };
   function absoluteUrl(value, base = 'https://www.bilibili.com/') {
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -20,8 +24,8 @@
   function compactNumber(value) {
     const n = Number(value || 0);
     if (!Number.isFinite(n)) return '';
-    if (n >= 100000000) return `${(n / 100000000).toFixed(n >= 1000000000 ? 0 : 1).replace(/\.0$/, '')}亿`;
-    if (n >= 10000) return `${(n / 10000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, '')}万`;
+    if (n >= 100000000) return `${(n / 100000000).toFixed(n >= 1000000000 ? 0 : 1).replace(/\.0$/, '')}${T('unit_billion','亿')}`;
+    if (n >= 10000) return `${(n / 10000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, '')}${T('unit_ten_thousand','万')}`;
     return String(Math.round(n));
   }
   function formatDuration(seconds) {
@@ -42,12 +46,12 @@
     const now = timestampSeconds(nowSeconds) || Math.floor(Date.now() / 1000);
     if (!ts) return '';
     const diff = Math.max(0, now - ts);
-    if (diff < 60) return '刚刚';
-    if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))}分钟前`;
-    if (diff < 86400) return `${Math.max(1, Math.floor(diff / 3600))}小时前`;
-    if (diff < 30 * 86400) return `${Math.max(1, Math.floor(diff / 86400))}天前`;
-    if (diff < 365 * 86400) return `${Math.max(1, Math.floor(diff / (30 * 86400)))}个月前`;
-    return `${Math.max(1, Math.floor(diff / (365 * 86400)))}年前`;
+    if (diff < 60) return T('just_now','刚刚');
+    if (diff < 3600) { const count=Math.max(1, Math.floor(diff / 60)); return T('minutes_ago',`${count}分钟前`,[count]); }
+    if (diff < 86400) { const count=Math.max(1, Math.floor(diff / 3600)); return T('hours_ago',`${count}小时前`,[count]); }
+    if (diff < 30 * 86400) { const count=Math.max(1, Math.floor(diff / 86400)); return T('days_ago',`${count}天前`,[count]); }
+    if (diff < 365 * 86400) { const count=Math.max(1, Math.floor(diff / (30 * 86400))); return T('months_ago',`${count}个月前`,[count]); }
+    const count=Math.max(1, Math.floor(diff / (365 * 86400))); return T('years_ago',`${count}年前`,[count]);
   }
   function stripHtml(value) {
     return String(value || '')
@@ -98,7 +102,7 @@
       const category = String(item && (item.tname || item.type_name || item.category || item.category_name) || raw && (raw.tname || raw.type_name || raw.category || raw.category_name) || '').trim();
       const categoryKey = homeCategoryKey(category, item && (item.tid || item.type_id) || raw && (raw.tid || raw.type_id));
       const publishedAt = timestampSeconds(item.pubdate || item.ctime || raw && (raw.pubdate || raw.ctime));
-      const viewText = item.stat && item.stat.view != null ? `${compactNumber(item.stat.view)}播放` : '';
+      const viewText = item.stat && item.stat.view != null ? `${compactNumber(item.stat.view)}${T('views','播放')}` : '';
       const publishedText = formatRelativeTime(publishedAt, nowSeconds);
       return {
         kind: 'video', bvid, title, category, categoryKey,
@@ -134,7 +138,7 @@
       const rawProgress = Number(item.progress || 0);
       const progressSeconds = rawProgress < 0 ? durationSeconds : Math.max(0, rawProgress);
       const progress = durationSeconds > 0 ? Math.max(0, Math.min(1, progressSeconds / durationSeconds)) : 0;
-      const progressText = durationSeconds > 0 ? `已观看 ${Math.round(progress * 100)}%` : (progressSeconds ? `已观看 ${formatDuration(progressSeconds)}` : '已观看');
+      const progressText = durationSeconds > 0 ? T('watched_percent',`已观看 ${Math.round(progress * 100)}%`,[Math.round(progress * 100)]) : (progressSeconds ? T('watched_duration',`已观看 ${formatDuration(progressSeconds)}`,[formatDuration(progressSeconds)]) : T('watched','已观看'));
       return {
         kind: h.business === 'live' ? 'live' : h.business === 'pgc' ? 'bangumi' : 'video',
         bvid: String(h.bvid || ''), title: String(item.title), href,
@@ -163,7 +167,7 @@
       banner: mediaUrl(data.space && (data.space.l_img || data.space.s_img)),
       sign: String(card.sign || '').trim(),
       fans, attention, archiveCount,
-      stats: [fans ? `${compactNumber(fans)} 粉丝` : '', attention ? `${compactNumber(attention)} 关注` : '', archiveCount ? `${compactNumber(archiveCount)} 投稿` : ''].filter(Boolean).join(' · '),
+      stats: [fans ? `${compactNumber(fans)}${T('fans',' 粉丝')}` : '', attention ? `${compactNumber(attention)}${T('following_count',' 关注')}` : '', archiveCount ? `${compactNumber(archiveCount)}${T('uploads',' 投稿')}` : ''].filter(Boolean).join(' · '),
       following: Boolean(data.following),
       href: `https://space.bilibili.com/${resolvedMid}`,
     };
@@ -182,7 +186,7 @@
         author: String(profile.name || ''), avatar: mediaUrl(profile.avatar),
         authorHref: resolvedMid ? `https://space.bilibili.com/${resolvedMid}` : '',
         publishedAt: Number(item.created || 0),
-        meta: [item.play != null ? `${compactNumber(item.play)}播放` : '', formatRelativeTime(item.created, nowSeconds)].filter(Boolean).join(' · '),
+        meta: [item.play != null ? `${compactNumber(item.play)}${T('views','播放')}` : '', formatRelativeTime(item.created, nowSeconds)].filter(Boolean).join(' · '),
       };
     }).filter(Boolean);
   }
@@ -240,7 +244,7 @@
           thumbnail: mediaUrl(archive.cover), duration: formatDuration(archive.duration),
           author: output.author, avatar: output.avatar, authorHref: output.authorHref,
           publishedAt,
-          meta: [String(archive.stat && (archive.stat.play || archive.stat.view) || '').trim(), publishedText].filter(Boolean).map((value,index)=>index===0&&!/播放$/.test(value)?`${value}播放`:value).join(' · '),
+          meta: [String(archive.stat && (archive.stat.play || archive.stat.view) || '').trim(), publishedText].filter(Boolean).map((value,index)=>index===0&&!value.endsWith(T('views','播放'))?`${value}${T('views','播放')}`:value).join(' · '),
         };
       }
       return output.author || output.text || output.images.length || output.video ? output : null;
@@ -282,7 +286,7 @@
         author:String(owner.name || ''), avatar:mediaUrl(owner.face),
         authorHref:owner.mid ? `https://space.bilibili.com/${owner.mid}` : '',
         publishedAt:Number(item.pubdate || 0),
-        meta:[durationSeconds ? `已观看 ${Math.round(Math.min(1, progressSeconds / durationSeconds) * 100)}%` : '', formatRelativeTime(item.pubdate, nowSeconds)].filter(Boolean).join(' · '),
+        meta:[durationSeconds ? T('watched_percent',`已观看 ${Math.round(Math.min(1, progressSeconds / durationSeconds) * 100)}%`,[Math.round(Math.min(1, progressSeconds / durationSeconds) * 100)]) : '', formatRelativeTime(item.pubdate, nowSeconds)].filter(Boolean).join(' · '),
         progress:durationSeconds ? Math.max(0, Math.min(1, progressSeconds / durationSeconds)) : 0,
         aid:Number(item.aid || 0),
       };
@@ -291,7 +295,7 @@
   function normalizeFavoriteFolders(payload) {
     const list = payload && payload.code === 0 && payload.data && Array.isArray(payload.data.list) ? payload.data.list : [];
     return list.map((item) => ({
-      id:String(item.id || item.media_id || ''), title:String(item.title || '收藏夹'), count:Number(item.media_count || item.count || 0),
+      id:String(item.id || item.media_id || ''), title:String(item.title || T('favorites_title','收藏夹')), count:Number(item.media_count || item.count || 0),
       cover:mediaUrl(item.cover), href:item.id ? `https://space.bilibili.com/${item.mid || ''}/favlist?fid=${item.id}&ftype=create` : '',
     })).filter(x => x.id);
   }
@@ -306,7 +310,7 @@
         thumbnail:mediaUrl(item.cover), duration:formatDuration(item.duration),
         author:String(upper.name || ''), avatar:mediaUrl(upper.face), authorHref:upper.mid ? `https://space.bilibili.com/${upper.mid}` : '',
         publishedAt:Number(item.pubtime || item.ctime || 0),
-        meta:[item.cnt_info && item.cnt_info.play != null ? `${compactNumber(item.cnt_info.play)}播放` : '', formatRelativeTime(item.pubtime || item.ctime, nowSeconds)].filter(Boolean).join(' · '),
+        meta:[item.cnt_info && item.cnt_info.play != null ? `${compactNumber(item.cnt_info.play)}${T('views','播放')}` : '', formatRelativeTime(item.pubtime || item.ctime, nowSeconds)].filter(Boolean).join(' · '),
       };
     }).filter(Boolean);
   }
@@ -327,7 +331,7 @@
         author:String(owner.name || ''), avatar:mediaUrl(owner.face),
         authorHref:owner.mid ? `https://space.bilibili.com/${owner.mid}` : '',
         publishedAt,
-        meta:[item.stat && item.stat.view != null ? `${compactNumber(item.stat.view)}播放` : '', formatRelativeTime(publishedAt, nowSeconds)].filter(Boolean).join(' · '),
+        meta:[item.stat && item.stat.view != null ? `${compactNumber(item.stat.view)}${T('views','播放')}` : '', formatRelativeTime(publishedAt, nowSeconds)].filter(Boolean).join(' · '),
       };
     }).filter(Boolean);
   }
@@ -359,7 +363,7 @@
         author:stripHtml(item.author || item.up_name || ''), avatar:mediaUrl(item.upic || item.face || ''),
         authorHref:item.mid ? `https://space.bilibili.com/${item.mid}` : '',
         publishedAt,
-        meta:[item.play != null ? `${compactNumber(item.play)}播放` : '', formatRelativeTime(publishedAt, nowSeconds)].filter(Boolean).join(' · '),
+        meta:[item.play != null ? `${compactNumber(item.play)}${T('views','播放')}` : '', formatRelativeTime(publishedAt, nowSeconds)].filter(Boolean).join(' · '),
       };
     }).filter(Boolean);
   }
@@ -393,7 +397,7 @@
         sign:stripHtml(item.usign || item.sign || ''),
         following:Boolean(item.is_followed || item.following),
         fans, videos,
-        meta:[fans ? `${compactNumber(fans)}粉丝` : '', videos ? `${compactNumber(videos)}个视频` : ''].filter(Boolean).join(' · '),
+        meta:[fans ? `${compactNumber(fans)}${T('fans','粉丝')}` : '', videos ? T('video_count',`${compactNumber(videos)}个视频`,[compactNumber(videos)]) : ''].filter(Boolean).join(' · '),
       };
     }).filter(Boolean);
   }
@@ -412,7 +416,7 @@
         kind:isBangumi ? 'bangumi' : 'media', mediaId, seasonId, title, href,
         thumbnail:mediaUrl(item.cover || item.pic || ''),
         description:stripHtml(item.desc || item.cv || item.staff || ''),
-        meta:[String(item.areas || '').trim(), String(item.styles || '').trim(), score ? `${score}分` : '', formatRelativeTime(publishedAt, nowSeconds)].filter(Boolean).join(' · '),
+        meta:[String(item.areas || '').trim(), String(item.styles || '').trim(), score ? `${score}${T('score','分')}` : '', formatRelativeTime(publishedAt, nowSeconds)].filter(Boolean).join(' · '),
       };
     }).filter(Boolean);
   }
@@ -435,7 +439,7 @@
       const mid = String(member.mid || '').trim();
       return {
         id:String(reply && (reply.rpid_str || reply.rpid) || ''),
-        author:String(member.uname || member.name || '用户'),
+        author:String(member.uname || member.name || T('user','用户')),
         avatar:mediaUrl(member.avatar || member.face || ''),
         authorHref:mid ? `https://space.bilibili.com/${mid}` : '',
         message:String(content.message || ''),
@@ -472,7 +476,7 @@
         thumbnail:mediaUrl(item.keyframe || item.cover), duration:'LIVE',
         author:String(item.uname || '').trim(), avatar:mediaUrl(item.face),
         authorHref:uid ? `https://space.bilibili.com/${uid}` : '',
-        meta:[online ? `${compactNumber(online)}人正在观看` : '正在直播', String(item.area_v2_name || '').trim()].filter(Boolean).join(' · '),
+        meta:[online ? `${compactNumber(online)}${T('watching','人正在观看')}` : T('live_now','正在直播'), String(item.area_v2_name || '').trim()].filter(Boolean).join(' · '),
         roomId,
       };
     }).filter(Boolean);
@@ -486,11 +490,11 @@
         const episodeId = String(ep && (ep.episode_id || ep.ep_id || ep.id) || '').replace(/\D/g, '');
         if (!episodeId) continue;
         const episodeLabel = String(ep.pub_index || ep.pub_title || ep.title || '').trim();
-        const seriesTitle = String(ep.season_title || ep.show_title || ep.long_title || ep.title || episodeLabel || '番剧').trim();
+        const seriesTitle = String(ep.season_title || ep.show_title || ep.long_title || ep.title || episodeLabel || T('bangumi','番剧')).trim();
         episodes.push({
           kind:'bangumi', title:seriesTitle, href:`https://www.bilibili.com/bangumi/play/ep${episodeId}`,
           thumbnail:mediaUrl(ep.ep_cover || ep.square_cover || ep.cover), duration:episodeLabel,
-          author:'番剧', avatar:'', authorHref:'https://www.bilibili.com/anime/',
+          author:T('bangumi','番剧'), avatar:'', authorHref:'https://www.bilibili.com/anime/',
           meta:[episodeLabel && episodeLabel !== seriesTitle ? episodeLabel : '', String(ep.pub_time || '').trim(), String(ep.plays || '').trim(), String(ep.follows || '').trim()].filter(Boolean).join(' · '),
           publishedAt:Number(day && day.date_ts || 0), episodeId,
         });
@@ -513,7 +517,7 @@
         author:String(owner.name || '').trim(), avatar:mediaUrl(owner.face),
         authorHref:owner.mid ? `https://space.bilibili.com/${owner.mid}` : '',
         publishedAt,
-        meta:[item.stat && item.stat.view != null ? `${compactNumber(item.stat.view)}播放` : '', formatRelativeTime(publishedAt, nowSeconds)].filter(Boolean).join(' · '),
+        meta:[item.stat && item.stat.view != null ? `${compactNumber(item.stat.view)}${T('views','播放')}` : '', formatRelativeTime(publishedAt, nowSeconds)].filter(Boolean).join(' · '),
       };
     }).filter(Boolean);
   }

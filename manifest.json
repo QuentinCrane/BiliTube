@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "BiliTube",
+  "default_locale": "zh_CN",
+  "name": "__MSG_ext_name__",
   "version": "0.12.4",
-  "description": "BiliTube 0.12.4：Watch 页面新增 document_start 预布局，减少 Bilibili 原布局先绘制导致的首屏抽动；标题信息容器强制回归内容高度并进一步收紧作者行间距。",
+  "description": "__MSG_ext_description__",
   "permissions": [
     "storage"
   ],
@@ -42,6 +43,7 @@
         "src/styles/core.css"
       ],
       "js": [
+        "src/core/i18n.js",
         "src/page/preflight.js",
         "src/core/policy.js",
         "src/core/theme.js",

@@ -6,6 +6,7 @@
 
 ```text
 .
+├── _locales/               扩展界面翻译
 ├── assets/                 扩展图标
 ├── docs/                   产品、架构、构建、测试、隐私和发布文档
 │   └── screenshots/        README 和文档截图
@@ -99,6 +100,7 @@ git push -u origin main
 BiliTube 是加载解压扩展，不需要编译 JavaScript。发布压缩包应包含：
 
 - `manifest.json`；
+- `_locales/`；
 - `assets/`；
 - `src/`；
 - README、LICENSE、CHANGELOG、PAGE_AUDIT；

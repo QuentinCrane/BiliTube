@@ -1,5 +1,8 @@
 (() => {
   'use strict';
+  const I18n = window.BiliTubeI18n;
+  const T = (key, fallback, substitutions) => I18n && typeof I18n.t === 'function' ? I18n.t(key, fallback, substitutions) : fallback;
+  if (I18n && typeof I18n.apply === 'function') I18n.apply(document);
   const defaults = {
     enabled:true, glassMode:true, theme:'system', density:'comfortable', motionMode:'full', showCardAuthor:true, showCardMeta:true, sidebarCollapsed:false, showSubscriptions:true,
     homeFollowedShelf:true, homeLiveShelf:true, homeBangumiShelf:true, homePopularShelf:true,
@@ -19,7 +22,7 @@
     const settings={};
     for(const id of ids){const node=document.getElementById(id);if(!node)continue;settings[id]=checkboxIds.has(id)?node.checked:(id==='hoverPreviewDelay'?Number(node.value):node.value);}
     chrome.storage.local.set({ bilitubeCoreSettings: settings }, () => {
-      status.textContent = chrome.runtime.lastError ? '保存失败' : '已保存，已打开的 Bilibili 页面会同步更新';
+      status.textContent = chrome.runtime.lastError ? T('settings_save_failed','保存失败') : T('settings_saved','已保存，已打开的 Bilibili 页面会同步更新');
       setTimeout(() => { status.textContent = ''; }, 1800);
     });
   }
