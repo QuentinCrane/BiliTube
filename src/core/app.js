@@ -266,10 +266,6 @@
   function dialogButton(text, primary=false) {
     const button=document.createElement('button');button.type='button';button.className=primary?'bt-dialog-button is-primary':'bt-dialog-button';button.textContent=text;return button;
   }
-  function openFavorite(folderId) {
-    favoriteSelectedId=String(folderId||''); favoriteVideos=[]; favoritePage=1; favoriteHasMore=true; favoriteError=''; favoriteLoading=true;
-    if (currentContext && currentContext.mid) { rerenderCurrentReplace(); requestApi('favorites',{mid:currentContext.mid,mediaId:favoriteSelectedId,page:1,append:false}); }
-  }
   async function clearHistory() {
     const csrf=requireWatchLogin(); if(!csrf)return;
     const modal=window.BiliTubeUI.createDialog('清除观看记录');modal.body.append(Object.assign(document.createElement('p'),{textContent:'将清除全部 Bilibili 观看记录。此操作无法撤销。'}));
@@ -280,7 +276,7 @@
     const next=!historyPaused;const result=await ApiClient.request('history-toggle',{paused:next,csrf});
     if(result&&result.code===0){historyPaused=next;rerenderCurrentReplace();showToast(next?'已暂停观看记录':'已开启观看记录');}else showToast(result&&result.message||'设置失败');
   }
-  const callbacks={ toggleTheme,toggleVisualStyle,toggleSidebar,openSettings,bindPreview,followSpace,requestSearchSuggestions,action:runAction,openFavorite,clearHistory,toggleHistoryPause,toggleWatchLater,isWatchLater,showWatchLaterQuick:()=>settings.watchLaterQuick!==false,showCardAuthor:()=>settings.showCardAuthor!==false,showCardMeta:()=>settings.showCardMeta!==false };
+  const callbacks={ toggleTheme,toggleVisualStyle,toggleSidebar,openSettings,bindPreview,beforeRender:()=>preview.destroy(),followSpace,requestSearchSuggestions,action:runAction,clearHistory,toggleHistoryPause,toggleWatchLater,isWatchLater,showWatchLaterQuick:()=>settings.watchLaterQuick!==false,showCardAuthor:()=>settings.showCardAuthor!==false,showCardMeta:()=>settings.showCardMeta!==false };
 
   function mergeUnique(existing, incoming, keyFn) {
     const out = Array.isArray(existing) ? existing.slice() : [];
@@ -351,6 +347,8 @@
   function armInfiniteLoading() { queueMicrotask(setupInfiniteLoading); }
 
   async function requestApi(type, params={}) {
+    const requestGeneration = generation;
+    const requestHref = location.href;
     const key = type === 'space-profile' ? `${type}:${params.mid || ''}`
       : type === 'space-archives' ? `${type}:${params.mid || ''}:${params.page || 1}`
       : type === 'home' ? `${type}:${params.page || 1}`
@@ -358,12 +356,12 @@
       : type === 'search' ? `${type}:${params.category || 'all'}:${params.keyword || ''}:${params.page || 1}`
       : type === 'history' ? `${type}:${params.max || 0}:${params.business || ''}:${params.viewAt || 0}`
       : type === 'dynamic' ? `${type}:${params.offset || 'first'}`
-      : type === 'favorites' ? `${type}:${params.mediaId || ''}:${params.page || 1}`
+      : type === 'favorites' ? `${type}:${params.mid || ''}:${params.mediaId || ''}:${params.page || 1}`
       : type === 'watch-related' ? `${type}:${params.bvid || ''}`
       : type;
     const seq=(apiSeq.get(key)||0)+1; apiSeq.set(key,seq);
     const payload=await ApiClient.request(type,params);
-    if (apiSeq.get(key)!==seq) return;
+    if (requestGeneration!==generation || requestHref!==location.href || apiSeq.get(key)!==seq) return;
 
     if (type==='account') {
       const account=Data.normalizeAccount(payload);
@@ -529,7 +527,7 @@
       if(requestData){requestApi('watchlater');requestApi('subscriptions');} return;
     }
     if(context.route==='favorites') {
-      const urlId=new URLSearchParams(location.search).get('fid')||''; if(urlId&&urlId!==favoriteSelectedId){favoriteSelectedId=urlId;favoriteVideos=[];favoritePage=1;favoriteHasMore=true;favoriteError='';}
+      if(requestData){favoriteSelectedId=new URLSearchParams(location.search).get('fid')||'';favoriteFolders=[];favoriteVideos=[];favoritePage=1;favoriteHasMore=true;favoriteError='';favoriteLoading=true;}
       const selectedFolder=favoriteFolders.find(folder=>String(folder.id)===String(favoriteSelectedId))||favoriteFolders[0]||null;
       shell.render('favorites',{...base,mid:context.mid,folders:favoriteFolders,videos:favoriteVideos,selectedId:favoriteSelectedId,selectedFolder,loading:favoriteLoading,hasMore:favoriteHasMore,error:favoriteError}); armInfiniteLoading();
       if(requestData){favoriteLoading=true;favoritePage=1;favoriteHasMore=true;requestApi('favorites',{mid:context.mid,mediaId:favoriteSelectedId,page:1,append:false});requestApi('subscriptions');} return;
@@ -585,7 +583,7 @@
     rerenderTimer=setTimeout(()=>{
       rerenderTimer=null;
       if(!currentContext||currentContext.strategy!=='replace'||!shell.getRoot())return;
-      preview.destroy();shell.updateChrome(chromeData());renderReplace(currentContext,false);
+      shell.updateChrome(chromeData());renderReplace(currentContext,false);
     },60);
   }
   function onBridgeMessage(event) {

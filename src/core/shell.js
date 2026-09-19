@@ -17,6 +17,7 @@
       const shouldAnimate=previousRoute===null||previousRoute!==route;
       if(transitionTimer){clearTimeout(transitionTimer);transitionTimer=null;}
       outlet.classList.remove('is-route-entering');
+      if(callbacks&&callbacks.beforeRender)callbacks.beforeRender();
       outlet.replaceChildren();
       outlet.dataset.route=route;
       const payload={...data,route};

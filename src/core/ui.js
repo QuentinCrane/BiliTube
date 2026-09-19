@@ -57,6 +57,11 @@
     return a;
   }
   function brand(callbacks){const a=e('a','bt-brand');a.href='https://www.bilibili.com/';const mark=e('span','bt-brand-mark');mark.textContent='▶';a.append(mark,e('strong','','BiliTube'));return a;}
+  const topbarUpdates = new WeakMap();
+  function updateTopbar(header,data={},callbacks) {
+    const update = topbarUpdates.get(header);
+    if(update)update(data,callbacks);
+  }
   function createTopbar(data={},callbacks={}) {
     const h=e('header','bt-topbar'); h.dataset.role='header'; const left=e('div','bt-topbar-left');
     const menu=e('button','bt-icon-button');menu.type='button';menu.title='切换侧栏';menu.append(icon('menu'));menu.addEventListener('click',()=>callbacks.toggleSidebar&&callbacks.toggleSidebar());left.append(menu,brand(callbacks));
@@ -79,6 +84,31 @@
     const theme=e('button','bt-icon-button bt-theme-button');theme.type='button';theme.title='切换主题';theme.dataset.action='theme';theme.append(icon('theme'));theme.addEventListener('click',()=>callbacks.toggleTheme&&callbacks.toggleTheme());right.append(theme);
     const glassMode=!(data.settings&&data.settings.glassMode===false);const style=e('button','bt-icon-button bt-style-button');style.type='button';style.title=glassMode?'切换到原版 YouTube Desktop 风格':'切换到毛玻璃界面';style.setAttribute('aria-label',style.title);style.setAttribute('aria-pressed',String(glassMode));style.dataset.action='visual-style';style.append(icon('layers'));style.addEventListener('click',()=>callbacks.toggleVisualStyle&&callbacks.toggleVisualStyle());right.append(style);
     const account=e('a','bt-account');account.href=data.user&&data.user.mid?`https://space.bilibili.com/${data.user.mid}`:'https://passport.bilibili.com/login';account.title=data.user&&data.user.name?data.user.name:'登录';if(data.user&&data.user.face){const img=e('img','bt-account-avatar');img.src=data.user.face;img.alt=data.user.name||'账号';img.decoding='async';account.append(img);}else account.append(icon('user'));right.append(account);
+    let renderedQuery=String(data.query||'');
+    let accountSignature=JSON.stringify(data.user||null);
+    topbarUpdates.set(h,(next,nextCallbacks)=>{
+      if(nextCallbacks)callbacks=nextCallbacks;
+      const query=String(next.query||'');
+      if(query!==renderedQuery){
+        renderedQuery=query;input.value=query;
+        suggestionSeq+=1;clearTimeout(suggestionTimer);suggestionItems=[];hideSuggestions();
+      }
+      if(next.settings&&next.settings.searchSuggestions===false){
+        suggestionSeq+=1;clearTimeout(suggestionTimer);suggestionItems=[];hideSuggestions();
+      }
+      const glass=!(next.settings&&next.settings.glassMode===false);
+      style.title=glass?'切换到原版 YouTube Desktop 风格':'切换到毛玻璃界面';
+      style.setAttribute('aria-label',style.title);style.setAttribute('aria-pressed',String(glass));
+      const signature=JSON.stringify(next.user||null);
+      if(signature!==accountSignature){
+        accountSignature=signature;
+        const user=next.user||{};
+        account.href=user.mid?`https://space.bilibili.com/${user.mid}`:'https://passport.bilibili.com/login';
+        account.title=user.name||'登录';account.replaceChildren();
+        if(user.face){const img=e('img','bt-account-avatar');img.src=user.face;img.alt=user.name||'账号';img.decoding='async';account.append(img);}
+        else account.append(icon('user'));
+      }
+    });
     h.append(left,form,right);return h;
   }
   function routeMatches(route,target){
@@ -155,16 +185,17 @@
     return { backdrop, toggle, close, isOpen:()=>backdrop.classList.contains('is-open') };
   }
   function renderSubscriptions(section,items,callbacks){section.querySelectorAll('.bt-sub-item').forEach(n=>n.remove());if(!items.length){const p=e('p','bt-side-muted bt-sub-item','登录后显示近期订阅');section.append(p);return;}for(const item of items.slice(0,8)){const a=e('a','bt-nav-item bt-sub-item');a.href=item.href;const wrap=e('span',`bt-sub-avatar${item.live?' is-live':''}`);if(item.avatar){const img=e('img','');img.src=item.avatar;img.alt='';wrap.append(img);}else wrap.append(icon('user'));if(item.unread&&!item.live)wrap.append(e('i','bt-unread-dot'));a.append(wrap,e('span','bt-sub-name',item.name||`UID ${item.mid}`));if(item.live)a.append(e('span','bt-live-label','LIVE'));section.append(a);}}
-  function updateChrome(root,data,callbacks){const oldHeader=root.querySelector('[data-role="header"]');if(oldHeader)oldHeader.replaceWith(createTopbar(data,callbacks));const oldSide=root.querySelector('[data-role="sidebar"]');if(oldSide){const next=createSidebar(data,callbacks);if(oldSide.classList.contains('is-collapsed'))next.classList.add('is-collapsed');oldSide.replaceWith(next);}}
+  function updateChrome(root,data,callbacks){const oldHeader=root.querySelector('[data-role="header"]');if(oldHeader)updateTopbar(oldHeader,data,callbacks);const oldSide=root.querySelector('[data-role="sidebar"]');if(oldSide){const next=createSidebar(data,callbacks);if(oldSide.classList.contains('is-collapsed'))next.classList.add('is-collapsed');oldSide.replaceWith(next);}}
+  const imageLoadStates = new Map();
   function progressiveImage(src,box,priority=false){
     const full=String(src||'');
-    const img=e('img','bt-thumb-image is-loading is-preview');
+    const settled=imageLoadStates.get(full);
+    const img=e('img',settled?'bt-thumb-image is-loaded':'bt-thumb-image is-loading is-preview');
     const eager=priority===true||priority==='high'||priority==='low';
     img.alt='';img.loading=eager?'eager':'lazy';img.fetchPriority=priority===true||priority==='high'?'high':priority==='low'?'low':'auto';img.decoding='async';img.dataset.btFullSrc=full;
-    const finish=()=>{box.classList.remove('is-image-loading');box.classList.add('is-image-loaded');img.classList.remove('is-loading','is-preview','is-promoting');img.classList.add('is-loaded');};
-    img.addEventListener('load',finish,{once:true});
-    img.addEventListener('error',finish,{once:true});
-    box.classList.add('bt-thumb-progressive','is-image-loading');
+    const finish=(state='settled')=>{imageLoadStates.set(full,state);box.classList.remove('is-image-loading');box.classList.add('is-image-loaded');img.classList.remove('is-loading','is-preview','is-promoting');img.classList.add('is-loaded');};
+    if(!settled){img.addEventListener('load',()=>finish('loaded'),{once:true});img.addEventListener('error',()=>finish('failed'),{once:true});}
+    box.classList.add('bt-thumb-progressive',settled?'is-image-loaded':'is-image-loading');
     img.src=full;
     return img;
   }
@@ -298,9 +329,9 @@
     const selectedFolder=data.selectedFolder||null;outlet.append(heading('收藏夹','像播放列表一样浏览 B站收藏'));
     const layout=e('div','bt-favorites-layout');const folders=e('aside','bt-favorite-folders');const videos=e('section','bt-favorite-videos');
     if(selectedFolder){const summary=e('section','bt-favorite-summary');const cover=e('div','bt-favorite-summary-cover');if(selectedFolder.cover){const img=e('img','');img.src=selectedFolder.cover;img.alt='';cover.append(img);}else cover.append(icon('library'));const info=e('div','bt-favorite-summary-info');info.append(e('h2','',selectedFolder.title||'收藏夹'),e('p','',`${selectedFolder.count||data.videos&&data.videos.length||0} 个视频`));const first=data.videos&&data.videos[0];if(first){const play=e('a','bt-primary-button');play.append(icon('anime'),e('span','','播放全部'));const playlistHref=selectedFolder&&selectedFolder.id?`https://www.bilibili.com/medialist/play/ml${selectedFolder.id}`:first.href;bindLink(play,playlistHref,callbacks);info.append(play);}summary.append(cover,info);folders.append(summary);}
-    for(const folder of data.folders||[]){const a=e('a',`bt-favorite-folder${String(folder.id)===String(data.selectedId||'')?' is-active':''}`);a.href=`https://space.bilibili.com/${data.mid}/favlist?fid=${encodeURIComponent(folder.id)}&ftype=create`;a.append(e('strong','',folder.title),e('span','',`${folder.count||0} 个视频`));a.addEventListener('click',(ev)=>{if(callbacks&&callbacks.openFavorite){ev.preventDefault();callbacks.openFavorite(folder.id);}});folders.append(a);}if(!folders.children.length)folders.append(e('div','bt-empty','没有读取到收藏夹'));
+    for(const folder of data.folders||[]){const a=e('a',`bt-favorite-folder${String(folder.id)===String(data.selectedId||'')?' is-active':''}`);a.href=`https://space.bilibili.com/${data.mid}/favlist?fid=${encodeURIComponent(folder.id)}&ftype=create`;a.append(e('strong','',folder.title),e('span','',`${folder.count||0} 个视频`));folders.append(a);}if(!folders.children.length)folders.append(e('div','bt-empty','没有读取到收藏夹'));
     if(data.videos&&data.videos.length){const grid=e('div','bt-video-grid');const priorityState={next:0};for(const [index,item] of data.videos.entries())grid.append(createCard(withImagePriority(item,index,priorityState),callbacks));videos.append(grid);}else if(data.loading){videos.append(e('div','bt-loading-state','正在读取收藏夹…'));renderSkeletonGrid(videos,6);}else videos.append(e('div','bt-empty',data.error||'这个收藏夹暂时没有读取到视频'));videos.append(feedSentinel('favorites',Boolean(data.loading),data.hasMore));layout.append(folders,videos);outlet.append(layout);
   }
   function renderSpace(outlet,data,callbacks){const p=data.profile||{};const hero=e('section','bt-channel-hero');if(p.banner){const b=e('img','bt-channel-banner');b.src=p.banner;b.alt='';hero.append(b);}const info=e('div','bt-channel-info');const av=e('div','bt-channel-avatar');if(p.avatar){const img=e('img','');img.src=p.avatar;img.alt=p.name||'';av.append(img);}else av.append(icon('user'));const text=e('div','bt-channel-text');text.append(e('h1','',p.name||`UID ${data.mid||''}`));if(p.mid)text.append(e('p','bt-channel-meta',`@${p.mid}${p.stats?' · '+p.stats:''}`));if(p.sign)text.append(e('p','bt-channel-sign',p.sign));const follow=e('button',`bt-subscribe${p.following?' is-following':''}`,p.following?'已关注':'关注');follow.type='button';follow.setAttribute('aria-pressed',String(Boolean(p.following)));follow.addEventListener('click',async()=>{if(!callbacks.followSpace||follow.disabled)return;follow.disabled=true;follow.classList.add('is-loading');const result=await callbacks.followSpace(String(data.mid||p.mid||''),Boolean(p.following));follow.disabled=false;follow.classList.remove('is-loading');if(result){p.following=!p.following;follow.classList.toggle('is-following',p.following);follow.textContent=p.following?'已关注':'关注';follow.setAttribute('aria-pressed',String(p.following));}});info.append(av,text,follow);hero.append(info);outlet.append(hero);const tabs=e('nav','bt-tabs');const base=`https://space.bilibili.com/${data.mid||p.mid||''}`;for(const [label,href] of [['主页',base],['视频',`${base}/upload`],['动态',`${base}/dynamic`],['合集',`${base}/lists`],['收藏',`${base}/favlist`]]){const active=(data.route==='space-home'&&label==='主页')||(data.route==='space-upload'&&label==='视频');const a=e('a',`bt-tab${active?' is-active':''}`,label);bindLink(a,href,callbacks);tabs.append(a);}outlet.append(tabs);if(data.error)outlet.append(e('div','bt-inline-notice',data.error));renderGrid(outlet,data.videos||[],callbacks,{loading:Boolean(data.loading),count:8});if(data.route==='space-upload')outlet.append(feedSentinel('space',Boolean(data.loading),data.hasMore));}
-  return { e, icon, createDialog, createTopbar, createSidebar, createSidebarDrawer, updateChrome, createCard, renderHome, renderHistory, renderSearch, renderDynamic, renderWatchLater, renderFavorites, renderSpace };
+  return { e, icon, createDialog, createTopbar, updateTopbar, createSidebar, createSidebarDrawer, updateChrome, createCard, renderHome, renderHistory, renderSearch, renderDynamic, renderWatchLater, renderFavorites, renderSpace };
 });

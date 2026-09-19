@@ -55,8 +55,8 @@
       if (!layer) return;
       const wasOpen = drawer && drawer.isOpen();
       const old = layer.querySelector('[data-role="header"]');
-      const next = UI.createTopbar(currentData, currentCallbacks);
-      if (old) old.replaceWith(next); else layer.prepend(next);
+      if (old) UI.updateTopbar(old, currentData, currentCallbacks);
+      else layer.prepend(UI.createTopbar(currentData, currentCallbacks));
       if (drawer) drawer.backdrop.remove();
       drawer = UI.createSidebarDrawer(currentData, currentCallbacks);
       layer.append(drawer.backdrop);

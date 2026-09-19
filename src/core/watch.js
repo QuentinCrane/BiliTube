@@ -348,7 +348,7 @@
       if (!layer) return;
       const wasOpen = drawer && drawer.isOpen();
       const oldHeader = layer.querySelector('[data-role="header"]');
-      if (oldHeader) oldHeader.replaceWith(UI.createTopbar(chromeData, callbacks));
+      if (oldHeader) UI.updateTopbar(oldHeader, chromeData, callbacks);
       if (drawer) drawer.backdrop.remove();
       drawer = UI.createSidebarDrawer(chromeData, callbacks);
       layer.append(drawer.backdrop);
