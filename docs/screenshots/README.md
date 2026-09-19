@@ -13,16 +13,14 @@
 
 这些图片来自维护者提供的 `refPic` 素材，内容是某一时刻的 Bilibili 页面快照。推荐文案和推荐内容会随账号、登录状态和 Bilibili 接口变化，不应被视为固定数据契约。
 
-## Recommended follow-up screenshots
+## Current screenshot set
 
-当前四张图已经足够说明主要页面。如果希望 README 与 Keepix 一样覆盖完整产品面，建议后续补充：
+当前四张图就是本项目公开文档使用的完整截图集合，不需要再新增图片：
 
-1. `settings.png`：设置页完整分组和保存状态。
-2. `dark-mode.png`：深色主题或紧凑侧栏。
-3. `watchlater.png`：稍后再看列表、进度条和播放全部入口。
-4. `favorites.png`：收藏夹列表、选中收藏夹和分页状态。
-5. `hover-preview.png`：鼠标悬浮预览、底部 seek rail 和“稍后再看”按钮。
-6. `infinite-scroll-stable.png`：向下分页后已有缩略图仍保持清晰的修复证据。
+1. `home.png`：首页推荐网格、分类 Chips、侧栏和 Shelf。
+2. `dynamic.png`：动态流、订阅列表和视频卡片。
+3. `watch.png`：播放器、原生互动区和相关推荐。
+4. `search.png`：搜索框、搜索 Tab、UP 卡片和视频结果。
 7. `native-watch-boundary.png`：能同时看出 Bilibili 原生播放器/评论和 BiliTube 外层布局的 Watch 页面。
 
 ## Screenshot rules

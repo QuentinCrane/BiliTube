@@ -82,7 +82,7 @@ node scripts/verify.mjs
 git diff --check
 ```
 
-当前自动测试通过并覆盖 204 项。真实 Bilibili 页面仍要在当前 Edge/Chrome 中重新确认，尤其是：
+当前自动测试通过并覆盖 205 项。真实 Bilibili 页面仍要在当前 Edge/Chrome 中重新确认，尤其是：
 
 1. 首页无限滚动时旧图片保持清晰；
 2. Watch 原生播放器、toolbar、评论和相关推荐；
@@ -105,7 +105,7 @@ git diff --check
 ## Next recommended work
 
 1. 在真实浏览器中完成当前 `PAGE_AUDIT.md` 的实机验收。
-2. 补充设置、深色模式、Watch Later、Favorites、Hover Preview 和无限滚动修复截图。
+2. 维护现有四张公开截图与当前页面实现的一致性。
 3. 将 Node 测试和 `scripts/verify.mjs` 接入 GitHub Actions。
 4. 公开仓库后检查 README 图片、CITATION.cff、LICENSE 和相对链接。
 5. Bilibili DOM/API 变化时，先补脱敏 fixture 和回归测试，再修改运行时。

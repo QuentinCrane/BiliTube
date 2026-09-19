@@ -121,7 +121,7 @@ BiliTube 是加载解压扩展，不需要编译 JavaScript。发布压缩包应
 - 搜索；
 - 普通视频播放。
 
-如果需要更完整地呈现产品，建议下一次截图补充：设置页、深色模式、稍后再看、收藏夹、Hover Preview 和无限滚动修复证据。详情见 [`screenshots/README.md`](screenshots/README.md)。
+当前四张截图已经作为公开仓库的固定素材集合：`home.png`、`dynamic.png`、`watch.png` 和 `search.png`。详情见 [`screenshots/README.md`](screenshots/README.md)。
 
 ## Attribution
 

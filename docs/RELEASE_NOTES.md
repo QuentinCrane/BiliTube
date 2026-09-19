@@ -26,7 +26,7 @@
 ## Validation
 
 ```text
-node --test tests/*.test.js       204 passed
+node --test tests/*.test.js       205 passed
 node scripts/verify.mjs           passed
 git diff --check                  passed
 ```

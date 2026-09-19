@@ -218,7 +218,7 @@ Manifest 权限仅包含 `storage` 和 Bilibili 相关 host permissions。BiliTu
 - Bilibili DOM、WBI 参数和接口字段可能变化，自动测试不能证明生产页面永远兼容。
 - 登录态内容的可用性取决于账号、区域和 Bilibili 当前接口权限。
 - 推荐封面、头像和标题属于动态内容，截图只能作为视觉证据，不能作为接口字段样本。
-- 当前公开截图已覆盖首页、动态、Watch 和搜索；设置、深色模式、Library 和 Hover Preview 仍建议补图。
+- 当前公开截图固定覆盖首页、动态、Watch 和搜索；设置、深色模式、Library 和 Hover Preview 的行为以源码、自动测试和真实浏览器验收为准。
 
 ## Source of truth
 

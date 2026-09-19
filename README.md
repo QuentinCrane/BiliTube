@@ -6,6 +6,14 @@ BiliTube 是一个面向 Chromium / Edge 的 Manifest V3 浏览器扩展。它�
 
 English summary: BiliTube is a YouTube Desktop-inspired visual layer for Bilibili. It keeps Bilibili's player, comments, complex actions, and native links in charge, while restyling supported desktop surfaces.
 
+<p align="center">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Chromium%20%2F%20Edge-4285F4?logo=googlechrome&logoColor=white">
+  <img alt="Manifest V3" src="https://img.shields.io/badge/Manifest-V3-34A853">
+  <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES2022-F7DF1E?logo=javascript&logoColor=111827">
+  <img alt="Native first" src="https://img.shields.io/badge/architecture-Native--first-00AEEC">
+  <img alt="License" src="https://img.shields.io/github/license/QuentinCrane/BiliTube?color=blue">
+</p>
+
 当前源码版本：`0.12.4`。本仓库不依赖打包器，安装时直接加载仓库目录；代码修复、测试和文档可以被 GitHub 上的维护者直接审阅。
 
 ## Overview
@@ -198,7 +206,7 @@ node --test tests/interaction-state.test.js
 
 <p align="center"><em>播放与搜索：保留 Bilibili 原生业务能力，同时使用 BiliTube 的桌面信息层级</em></p>
 
-更多素材命名、隐私处理和建议截图见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。
+素材命名和隐私处理说明见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。
 
 ## Known limitations
 

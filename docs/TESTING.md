@@ -147,4 +147,4 @@ Limitations: 未验证项目
 - `watch.png`：普通视频播放；
 - `search.png`：搜索结果。
 
-它们是视觉说明，不是自动化 golden test。后续如果补充 `infinite-scroll-stable.png`，应同时记录浏览器版本、页面 URL 和复现动作，避免把一张静态图误当作性能或行为证明。
+它们是视觉说明，不是自动化 golden test；图片本身不能替代浏览器版本、页面 URL 和复现动作记录，也不能单独证明性能或行为已经通过验收。
