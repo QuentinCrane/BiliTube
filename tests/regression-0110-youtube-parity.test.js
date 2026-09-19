@@ -27,6 +27,14 @@ test('video cards preserve YouTube-like media and quick watch later affordance',
   assert.match(css, /\.bt-preview-layer\{[^}]*pointer-events\s*:\s*none/s);
 });
 
+test('hover watch-later preserves the click event after pointer press', () => {
+  const ui = read('src/core/ui.js');
+  assert.match(ui, /const stopPointer=\(ev\)=>\{ev\.stopPropagation\(\);\}/);
+  assert.match(ui, /button\.addEventListener\('pointerdown',stopPointer\);button\.addEventListener\('click',handleClick\)/);
+  assert.match(ui, /const handleClick=async\(ev\)=>\{ev\.preventDefault\(\);ev\.stopPropagation\(\)/);
+  assert.doesNotMatch(ui, /addEventListener\('pointerdown',[^;]+preventDefault\(\)/);
+});
+
 test('watch surface defines a YouTube-like native two-column composition', () => {
   const css = read('src/styles/core.css');
   assert.match(css, /--bt-watch-related-w\s*:\s*402px/);
