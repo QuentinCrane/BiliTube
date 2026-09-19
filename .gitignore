@@ -1,6 +1,7 @@
 # Local browser screenshots, audit output and Git bundle backups
 /artifacts/
 /output/
+/.playwright-cli/
 
 # Dependencies and generated release packages
 node_modules/

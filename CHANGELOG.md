@@ -1,3 +1,13 @@
+# Changelog
+
+## Unreleased
+
+- **Infinite-scroll thumbnail stability**：修复首页、搜索、动态、收藏夹和频道投稿在追加下一页后整页重绘，导致已经加载完成的缩略图再次进入模糊占位并重新显示加载过程的问题。运行时会记住当前页面已完成的缩略图状态，并在相同 URL 重绘时直接保持清晰。
+- 为异步请求增加 route generation、当前 URL 和请求序号校验，避免旧路由或旧分页响应覆盖当前页面。
+- Shell 重绘前释放 Hover Preview 的 observer、timer 和卡片绑定；普通搜索输入框在账号/订阅状态更新时保留当前节点和未提交草稿。
+- 新增交互状态回归测试，覆盖缩略图重绘、搜索建议竞态、收藏夹路由竞态和 Preview 生命周期。
+- 补充 GitHub 开源文档：README、架构说明、构建指南、隐私说明、贡献指南和安全策略。
+
 ## 0.12.4
 
 - **Watch Prepaint Fix**：普通 `/video/` 页面在 `document_start` 立即进入 `bilitube-watch-preflight`，不再等 Watch runtime 完整挂载后才切换布局。
@@ -34,8 +44,6 @@
 - Mini player no longer collapses the Watch page into a single full-width layout or hides recommendations.
 - YouTube-sized BPX control overrides no longer apply to the native mini player.
 - Native mini player geometry is released back to Bilibili while the underlying Watch page keeps its normal grid.
-
-# Changelog
 
 ## 0.12.0
 
