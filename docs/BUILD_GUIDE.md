@@ -13,11 +13,9 @@ BiliTube 当前是“源码即扩展”的项目：没有 npm 构建产物，也
 ## Get the source
 
 ```powershell
-git clone https://github.com/<owner>/BiliTube.git
+git clone https://github.com/QuentinCrane/BiliTube.git
 Set-Location BiliTube
 ```
-
-如果仓库还没有公开 remote，把 `<owner>` 替换成实际 GitHub 组织或用户名；不要在公开文档中写入个人机器路径。
 
 ## Load the unpacked extension
 

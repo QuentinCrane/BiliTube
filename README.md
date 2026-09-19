@@ -211,4 +211,4 @@ node --test tests/interaction-state.test.js
 
 ## License
 
-BiliTube 使用 [MIT License](LICENSE)。Bilibili、YouTube 及相关商标和内容归其各自权利人所有。
+BiliTube 使用 [0BSD / Zero-Clause BSD License](LICENSE)，SPDX 标识为 `0BSD`。该协议允许商用、修改、复制和再发布，不要求保留署名或许可证文本；软件按现状提供，不附带保证。Bilibili、YouTube 及相关商标和内容归其各自权利人所有。

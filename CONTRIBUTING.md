@@ -25,7 +25,7 @@ Bug 报告至少应包含：
 ## Local setup
 
 ```powershell
-git clone https://github.com/<owner>/BiliTube.git
+git clone https://github.com/QuentinCrane/BiliTube.git
 Set-Location BiliTube
 node --test tests/*.test.js
 node scripts/verify.mjs
