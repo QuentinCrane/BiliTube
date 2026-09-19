@@ -135,7 +135,8 @@ Manifest 中的权限用途如下：
 ```text
 .
 ├── assets/                 扩展图标
-├── docs/                   公共技术、构建、隐私与贡献文档
+├── docs/                   公共产品、技术、构建、隐私与发布文档
+│   └── screenshots/        README 和文档截图素材
 ├── scripts/                静态校验和 smoke 脚本
 ├── src/
 │   ├── background.js       Manifest V3 service worker 与 Bilibili API
@@ -181,14 +182,23 @@ node --test tests/interaction-state.test.js
 
 ## Screenshots
 
-为了避免 README 中的图片随着 Bilibili 内容变化而失效，建议发布仓库时由维护者自己截取并放入 `docs/screenshots/`。建议至少包含：
+下面的截图来自维护者提供的当前界面素材，用于说明信息架构和页面边界；推荐内容、头像和播放数据会随 Bilibili 页面变化。
 
-1. `home.png`：首页推荐网格、分类 Chips、侧栏和 Shelf。
-2. `watch.png`：普通 Watch 页双栏布局，能看出原生播放器、toolbar、评论和相关推荐仍然存在。
-3. `settings.png`：设置页的分组导航和选项。
-4. `dark-mode.png`：深色主题或紧凑侧栏。
+<p align="center">
+  <img src="docs/screenshots/home.png" width="480" alt="BiliTube 首页">
+  <img src="docs/screenshots/dynamic.png" width="480" alt="BiliTube 动态页">
+</p>
 
-截图应优先使用无敏感账号信息的页面；真实 Bilibili 封面和头像的再分发也应遵守相应版权与站点规则。项目代码本身不依赖截图文件运行。
+<p align="center"><em>首页与动态：统一 Header、Sidebar、卡片层级和订阅式内容流</em></p>
+
+<p align="center">
+  <img src="docs/screenshots/watch.png" width="480" alt="BiliTube 视频播放页">
+  <img src="docs/screenshots/search.png" width="480" alt="BiliTube 搜索页">
+</p>
+
+<p align="center"><em>播放与搜索：保留 Bilibili 原生业务能力，同时使用 BiliTube 的桌面信息层级</em></p>
+
+更多素材命名、隐私处理和建议截图见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。
 
 ## Known limitations
 
@@ -201,7 +211,12 @@ node --test tests/interaction-state.test.js
 ## More for builders
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：运行时、路由策略、Native-first 边界和无限滚动修复。
+- [`docs/TECHNICAL_OVERVIEW.md`](docs/TECHNICAL_OVERVIEW.md)：产品目标、页面能力、数据流和功能边界。
 - [`docs/BUILD_GUIDE.md`](docs/BUILD_GUIDE.md)：安装、测试、发布包和故障排查。
+- [`docs/TESTING.md`](docs/TESTING.md)：自动测试、真实浏览器验收和图片回归复现步骤。
+- [`docs/GITHUB_PUBLISHING.md`](docs/GITHUB_PUBLISHING.md)：公开仓库、截图、版本和发布前检查清单。
+- [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md)：当前版本说明和 Release 文案草稿。
+- [`docs/AI_HANDOFF.md`](docs/AI_HANDOFF.md)：给下一位维护者或 AI 的公开接手说明。
 - [`docs/PRIVACY.md`](docs/PRIVACY.md)：权限、数据流和本地存储说明。
 - [`CONTRIBUTING.md`](CONTRIBUTING.md)：提交代码、测试和 Pull Request 约定。
 - [`SECURITY.md`](SECURITY.md)：安全问题报告与敏感信息处理。
