@@ -145,6 +145,7 @@ Manifest 中的权限用途如下：
 │   └── options/            扩展设置页
 ├── tests/                  Node.js 静态契约、回归和生命周期测试
 ├── manifest.json           Manifest V3 入口
+├── CITATION.cff            GitHub/论文引用署名信息
 ├── PAGE_AUDIT.md           自动测试与真实页面人工验收矩阵
 └── CHANGELOG.md            版本变更记录
 ```
@@ -209,6 +210,15 @@ node --test tests/interaction-state.test.js
 
 文档的组织方式参考了 [Keepix](https://github.com/QuentinCrane/Keepix) README 中“项目动机 → 快速开始 → 隐私 → 构建 → 项目结构 → 贡献”的公开仓库说明节奏，但内容以 BiliTube 的浏览器扩展边界为准。
 
-## License
+## License and attribution
 
-BiliTube 使用 [0BSD / Zero-Clause BSD License](LICENSE)，SPDX 标识为 `0BSD`。该协议允许商用、修改、复制和再发布，不要求保留署名或许可证文本；软件按现状提供，不附带保证。Bilibili、YouTube 及相关商标和内容归其各自权利人所有。
+BiliTube 使用 [MIT License](LICENSE)，SPDX 标识为 `MIT`。MIT 仍然允许商用、修改、复制、再发布和再许可，但要求再发布源码或软件实质性部分时保留版权声明和许可证文本；当前版权署名为 `QuentinCrane`。
+
+如果你在项目、文章、论文或视频中使用 BiliTube，项目也希望保留下面这条清晰署名：
+
+```text
+BiliTube — QuentinCrane
+https://github.com/QuentinCrane/BiliTube
+```
+
+GitHub 和论文工具可以读取根目录的 [`CITATION.cff`](CITATION.cff)。需要注意：MIT 的法律条件是保留版权/许可证声明，并不强制产品界面展示署名；如果你的场景必须要求界面内显著署名，需要另行设计更强的定制许可条款。Bilibili、YouTube 及相关商标和内容归其各自权利人所有。

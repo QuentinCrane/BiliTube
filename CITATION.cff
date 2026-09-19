@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use BiliTube in a project, article, paper, or video, please cite it as follows."
+title: "BiliTube"
+type: software
+version: "0.12.4"
+authors:
+  - name: "QuentinCrane"
+repository-code: "https://github.com/QuentinCrane/BiliTube"
+url: "https://github.com/QuentinCrane/BiliTube"
+license: "MIT"

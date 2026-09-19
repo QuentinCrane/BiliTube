@@ -88,7 +88,7 @@ node scripts/verify.mjs
 3. `node scripts/verify.mjs` 通过。
 4. `git diff --check` 没有空白错误。
 5. 手动验收中所有“实机”项目有记录；未验证项目不要写成“已支持”。
-6. README、CHANGELOG、隐私说明和截图与当前源码一致。
+6. README、CHANGELOG、LICENSE、CITATION.cff、隐私说明和截图与当前源码一致。
 7. 压缩包中包含 `manifest.json`、`src/`、`assets/` 和运行所需文件，不包含 `output/`、`.playwright-cli/`、测试缓存、个人配置或登录信息。
 8. 解压发布包到全新目录后，再走一遍“加载已解压的扩展”流程。
 

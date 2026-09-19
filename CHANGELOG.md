@@ -7,7 +7,7 @@
 - Shell 重绘前释放 Hover Preview 的 observer、timer 和卡片绑定；普通搜索输入框在账号/订阅状态更新时保留当前节点和未提交草稿。
 - 新增交互状态回归测试，覆盖缩略图重绘、搜索建议竞态、收藏夹路由竞态和 Preview 生命周期。
 - 补充 GitHub 开源文档：README、架构说明、构建指南、隐私说明、贡献指南和安全策略。
-- 仓库地址统一为 `https://github.com/QuentinCrane/BiliTube`，许可证切换为最宽松的 `0BSD`。
+- 仓库地址统一为 `https://github.com/QuentinCrane/BiliTube`，许可证调整为要求保留版权声明的宽松 `MIT`，并新增 `CITATION.cff` 作为项目引用署名入口。
 
 ## 0.12.4
 
