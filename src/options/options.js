@@ -1,12 +1,12 @@
 (() => {
   'use strict';
   const defaults = {
-    enabled:true, theme:'system', sidebarCollapsed:false, showSubscriptions:true,
+    enabled:true, glassMode:true, theme:'system', density:'comfortable', motionMode:'full', showCardAuthor:true, showCardMeta:true, sidebarCollapsed:false, showSubscriptions:true,
     homeFollowedShelf:true, homeLiveShelf:true, homeBangumiShelf:true, homePopularShelf:true,
     hoverPreview:true, hoverPreviewDelay:500, watchLaterQuick:true, searchSuggestions:true, hideAds:true,
   };
-  const ids = ['enabled','theme','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','hoverPreview','hoverPreviewDelay','watchLaterQuick','searchSuggestions','hideAds'];
-  const checkboxIds = new Set(['enabled','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','hoverPreview','watchLaterQuick','searchSuggestions','hideAds']);
+  const ids = ['enabled','glassMode','theme','density','motionMode','showCardAuthor','showCardMeta','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','hoverPreview','hoverPreviewDelay','watchLaterQuick','searchSuggestions','hideAds'];
+  const checkboxIds = new Set(['enabled','glassMode','showCardAuthor','showCardMeta','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','hoverPreview','watchLaterQuick','searchSuggestions','hideAds']);
   const status = document.getElementById('status');
   function apply(settings) {
     for (const id of ids) {

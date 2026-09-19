@@ -66,7 +66,7 @@ test('sidebar sections have subtle separators', () => {
 test('settings expose meaningful appearance home playback and search options', () => {
   const html = read('src/options/options.html');
   const js = read('src/options/options.js');
-  for (const id of ['showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','hoverPreview','searchSuggestions','hideAds']) {
+  for (const id of ['glassMode','density','motionMode','showCardAuthor','showCardMeta','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','hoverPreview','searchSuggestions','hideAds']) {
     assert.match(html, new RegExp(`id="${id}"`));
     assert.match(js, new RegExp(id));
   }
@@ -86,4 +86,3 @@ test('watch does not rebuild recommendation anchors or intercept native recommen
   assert.doesNotMatch(watch, /bindDirectLink|preventDefault\(|location\.assign|buildRelated|compactRelatedCard/);
   assert.match(watch, /bt-native-watch-related/);
 });
-

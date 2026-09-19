@@ -21,6 +21,8 @@
       <a href="#navigation">导航</a>
       <a href="#home">首页</a>
       <a href="#playback">播放与预览</a>
+      <a href="#interaction">交互与动效</a>
+      <a href="#cards">卡片信息</a>
       <a href="#search">搜索</a>
       <a href="#content">内容</a>
       <div class="settings-nav-divider"></div>
@@ -34,9 +36,10 @@
       </header>
 
       <section class="group" id="appearance">
-        <div class="group-head"><h2>外观</h2><p>控制整站基础状态与统一主题。</p></div>
+        <div class="group-head"><h2>外观</h2><p>控制整站基础状态、界面材质与统一主题。</p></div>
         <div class="card">
           <label class="row"><span><strong>启用 BiliTube</strong><small>关闭后恢复原版 Bilibili 页面。</small></span><input id="enabled" type="checkbox"></label>
+          <label class="row"><span><strong>毛玻璃界面</strong><small>在毛玻璃界面和原版 YouTube Desktop 风格之间切换，不会关闭 BiliTube 功能。</small></span><input id="glassMode" type="checkbox" aria-label="启用毛玻璃界面"></label>
           <label class="row"><span><strong>主题</strong><small>顶栏、侧栏和 BiliTube 重绘页面同步切换。</small></span><select id="theme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
         </div>
       </section>
@@ -65,6 +68,22 @@
           <label class="row"><span><strong>Hover 视频预览</strong><small>鼠标悬浮缩略图时播放无声预览，并保留底部拖动进度条。</small></span><input id="hoverPreview" type="checkbox"></label>
           <label class="row"><span><strong>预览启动延迟</strong><small>避免鼠标快速扫过卡片时频繁请求视频。</small></span><select id="hoverPreviewDelay"><option value="250">250 ms</option><option value="500">500 ms</option><option value="750">750 ms</option></select></label>
           <label class="row"><span><strong>稍后再看快捷按钮</strong><small>Hover 视频缩略图时，在右上角显示 YouTube 式时钟按钮。</small></span><input id="watchLaterQuick" type="checkbox"></label>
+        </div>
+      </section>
+
+      <section class="group" id="interaction">
+        <div class="group-head"><h2>交互与动效</h2><p>控制页面密度和动画反馈的强弱，原生播放器操作不受影响。</p></div>
+        <div class="card">
+          <label class="row"><span><strong>页面密度</strong><small>紧凑模式会缩小卡片间距、侧栏行高和内容留白。</small></span><select id="density"><option value="comfortable">舒适</option><option value="compact">紧凑</option></select></label>
+          <label class="row"><span><strong>动效强度</strong><small>选择完整、轻量或关闭 BiliTube 外层过渡与悬停动画。</small></span><select id="motionMode"><option value="full">完整</option><option value="subtle">轻量</option><option value="none">关闭</option></select></label>
+        </div>
+      </section>
+
+      <section class="group" id="cards">
+        <div class="group-head"><h2>卡片信息</h2><p>调整推荐、搜索和频道卡片里显示的辅助信息。</p></div>
+        <div class="card">
+          <label class="row"><span><strong>显示作者信息</strong><small>显示 UP 主头像和作者名，关闭后保留标题与缩略图。</small></span><input id="showCardAuthor" type="checkbox"></label>
+          <label class="row"><span><strong>显示观看数据</strong><small>显示观看数、发布时间等卡片元数据。</small></span><input id="showCardMeta" type="checkbox"></label>
         </div>
       </section>
 

@@ -24,6 +24,7 @@
     function cleanupActive() {
       if (!active) return;
       if (active.timer) clearTimeout(active.timer);
+      if (active.leaveTimer) clearTimeout(active.leaveTimer);
       if (active.video) {
         try { active.video.pause(); } catch {}
         active.video.removeAttribute('src');
@@ -103,7 +104,7 @@
 
     function begin(id, host, card) {
       cleanupActive();
-      const session = { id, host, card, timer: null, layer: null, video: null };
+      const session = { id, host, card, timer: null, leaveTimer: null, layer: null, video: null };
       active = session;
       session.timer = setTimeout(() => {
         session.timer = null;
@@ -119,8 +120,15 @@
       if (bindings.has(card)) bindings.get(card)();
       const id = String(item.bvid);
       if (observer) observer.observe(card);
-      const enter = () => { if (!offscreen.has(card)) begin(id, host, card); };
-      const leave = () => { if (active && active.card === card) cleanupActive(); };
+      const enter = () => {
+        if (active && active.card === card && active.leaveTimer) { clearTimeout(active.leaveTimer); active.leaveTimer = null; return; }
+        if (!offscreen.has(card)) begin(id, host, card);
+      };
+      const leave = () => {
+        if (!active || active.card !== card) return;
+        if (active.leaveTimer) clearTimeout(active.leaveTimer);
+        active.leaveTimer = setTimeout(() => { if (active && active.card === card) cleanupActive(); }, 120);
+      };
       const focusout = (event) => { if (!card.contains(event.relatedTarget)) leave(); };
       card.addEventListener('pointerenter', enter);
       card.addEventListener('pointerleave', leave);

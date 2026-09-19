@@ -18,7 +18,7 @@
 
   const CLIENT = 'bilitube-content-core';
   const BRIDGE = 'bilitube-bridge-core';
-  const defaults = { enabled:true, theme:'system', sidebarCollapsed:false, showSubscriptions:true, homeFollowedShelf:true, homeLiveShelf:true, homeBangumiShelf:true, homePopularShelf:true, hoverPreview:true, hoverPreviewDelay:500, watchLaterQuick:true, searchSuggestions:true, hideAds:true };
+  const defaults = { enabled:true, glassMode:true, theme:'system', density:'comfortable', motionMode:'full', showCardAuthor:true, showCardMeta:true, sidebarCollapsed:false, showSubscriptions:true, homeFollowedShelf:true, homeLiveShelf:true, homeBangumiShelf:true, homePopularShelf:true, hoverPreview:true, hoverPreviewDelay:500, watchLaterQuick:true, searchSuggestions:true, hideAds:true };
   let settings = { ...defaults };
   let generation = 0;
   let routeController = null;
@@ -36,7 +36,7 @@
   let historyLoading = false, historyHasMore = true, historyError = '', historyPaused = false;
   let dynamicItems = [];
   let dynamicOffset = '', dynamicLoading = false, dynamicHasMore = true, dynamicError = '';
-  let watchLaterVideos = [];
+  let watchLaterVideos = [], watchLaterLoading = false;
   let watchLaterBvids = new Set(), watchLaterAids = new Set(), watchLaterStateLoaded = false, watchLaterStatePromise = null;
   let infiniteObserver = null;
   let favoriteFolders = [];
@@ -92,7 +92,7 @@
   }
   function chromeData() {
     const sidebarSubscriptions = currentContext && currentContext.route === 'dynamic' && dynamicSubscriptions.length ? dynamicSubscriptions : subscriptions;
-    return { user:normalizeUser(bridgeState.user), subscriptions:sidebarSubscriptions, query:currentQuery(), settings };
+    return { user:normalizeUser(bridgeState.user), subscriptions:sidebarSubscriptions, query:currentQuery(), route:currentContext&&currentContext.route||'', settings };
   }
   function clearPreflight() { document.documentElement.classList.remove('bilitube-core-preflight'); }
   function applyThemeOnly(options = {}) {
@@ -102,14 +102,26 @@
     const commit = () => {
       html.dataset.btTheme = theme;
       html.classList.toggle('bt-hide-ads', settings.hideAds !== false);
+      html.classList.toggle('bt-glass-mode', settings.glassMode !== false);
+      html.classList.toggle('bt-density-compact', settings.density === 'compact');
+      html.dataset.btMotion = settings.motionMode || 'full';
       shell.updateTheme(theme);
       watch.updateTheme(theme);
       nativeAdapter.updateTheme(theme);
+      syncVisualStyleButtons();
     };
     if (!animate) { commit(); return; }
+    if (options.visualStyle) {
+      html.classList.add('bt-style-switching');
+      const finishStyleSwitch = () => html.classList.remove('bt-style-switching');
+      const runStyleSwitch = () => { commit(); setTimeout(finishStyleSwitch, 140); };
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(runStyleSwitch);
+      else runStyleSwitch();
+      return;
+    }
     html.classList.add('bt-theme-switching','bt-theme-animating');
     const finish = () => html.classList.remove('bt-theme-switching','bt-theme-animating');
-    if (typeof document.startViewTransition === 'function') {
+    if (options.viewTransition === true && typeof document.startViewTransition === 'function') {
       try {
         const transition = document.startViewTransition(commit);
         Promise.resolve(transition && transition.finished).catch(() => {}).finally(finish);
@@ -130,7 +142,13 @@
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(() => node.classList.remove('is-visible'), 2400);
   }
-  function toggleTheme() { const next=Theme.nextExplicit(effectiveTheme()); persist({theme:next}); applyThemeOnly({ animate:true }); }
+  function syncVisualStyleButtons() {
+    const glassMode=settings.glassMode!==false;
+    const title=glassMode?'切换到原版 YouTube Desktop 风格':'切换到毛玻璃界面';
+    document.querySelectorAll('.bt-style-button').forEach(button=>{button.title=title;button.setAttribute('aria-label',title);button.setAttribute('aria-pressed',String(glassMode));});
+  }
+  function toggleTheme() { const next=Theme.nextExplicit(effectiveTheme()); persist({theme:next}); applyThemeOnly({ animate:true, viewTransition:false }); }
+  function toggleVisualStyle() { const next=settings.glassMode===false; persist({glassMode:next}); applyThemeOnly({ animate:true, visualStyle:true }); syncVisualStyleButtons(); showToast(next?'已切换到毛玻璃界面':'已切换到原版 YouTube Desktop 风格'); }
   function openSettings() {
     try {
       chrome.runtime.sendMessage({ source:'bilitube-control', type:'open-options' }, (response) => {
@@ -186,7 +204,7 @@
   }
   function syncWatchLaterButtons(item, active) {
     const bvid=String(item&&item.bvid||''); const aid=String(Number(item&&item.aid||0)||'');
-    const buttons=Array.from(document.querySelectorAll('.bt-watchlater-quick'));
+    const buttons=Array.from(document.querySelectorAll('.bt-watchlater-quick,.bt-watchlater-watch'));
     for(const button of buttons){
       const same=Boolean((bvid&&button.dataset.bvid===bvid)||(aid&&button.dataset.aid===aid));
       if(!same)continue;
@@ -194,6 +212,8 @@
       button.setAttribute('aria-pressed',String(Boolean(active)));
       button.title=active?'从稍后再看移除':'稍后再看';
       button.setAttribute('aria-label',button.title);
+      const label=button.querySelector('.bt-watchlater-label');
+      if(label)label.textContent=active?'已加入稍后再看':'稍后再看';
     }
   }
   async function toggleWatchLater(item) {
@@ -218,7 +238,7 @@
     routeController = null;
     if (rerenderTimer) { clearTimeout(rerenderTimer); rerenderTimer = null; }
     disconnectInfiniteObserver();
-    preview.destroy(); watch.destroy(); nativeAdapter.restore(); guard.restore(); shell.destroy(); clearPreflight(); document.documentElement.classList.remove('bt-theme-switching','bt-theme-animating','bt-hide-ads'); document.documentElement.removeAttribute('data-bt-theme');
+    preview.destroy(); watch.destroy(); nativeAdapter.restore(); guard.restore(); shell.destroy(); clearPreflight(); document.documentElement.classList.remove('bt-theme-switching','bt-theme-animating','bt-style-switching','bt-hide-ads','bt-glass-mode','bt-density-compact'); document.documentElement.removeAttribute('data-bt-theme'); document.documentElement.removeAttribute('data-bt-motion');
   }
   function csrfToken() {
     const match = document.cookie.match(/(?:^|;\s*)bili_jct=([^;]+)/);
@@ -260,7 +280,7 @@
     const next=!historyPaused;const result=await ApiClient.request('history-toggle',{paused:next,csrf});
     if(result&&result.code===0){historyPaused=next;rerenderCurrentReplace();showToast(next?'已暂停观看记录':'已开启观看记录');}else showToast(result&&result.message||'设置失败');
   }
-  const callbacks={ toggleTheme,toggleSidebar,openSettings,bindPreview,followSpace,requestSearchSuggestions,action:runAction,openFavorite,clearHistory,toggleHistoryPause,toggleWatchLater,isWatchLater,showWatchLaterQuick:()=>settings.watchLaterQuick!==false };
+  const callbacks={ toggleTheme,toggleVisualStyle,toggleSidebar,openSettings,bindPreview,followSpace,requestSearchSuggestions,action:runAction,openFavorite,clearHistory,toggleHistoryPause,toggleWatchLater,isWatchLater,showWatchLaterQuick:()=>settings.watchLaterQuick!==false,showCardAuthor:()=>settings.showCardAuthor!==false,showCardMeta:()=>settings.showCardMeta!==false };
 
   function mergeUnique(existing, incoming, keyFn) {
     const out = Array.isArray(existing) ? existing.slice() : [];
@@ -415,7 +435,7 @@
         dynamicOffset=String(payload.data&&payload.data.offset||'');dynamicHasMore=Boolean(payload.data&&payload.data.has_more)&&list.length>0&&merged.added>0&&Boolean(dynamicOffset);
       }
     }
-    else if (type==='watchlater') ingestWatchLater(payload);
+    else if (type==='watchlater') { watchLaterLoading=false; ingestWatchLater(payload); }
     else if (type==='history-status') {
       if(payload&&payload.code===0) historyPaused=Boolean(payload.data);
     }
@@ -504,7 +524,8 @@
       if(requestData){dynamicOffset='';dynamicHasMore=true;dynamicError='';dynamicLoading=true;dynamicSubscriptions=[];requestApi('dynamic',{offset:'',append:false});requestApi('subscriptions');} return;
     }
     if(context.route==='watchlater') {
-      shell.render('watchlater',{...base,videos:watchLaterVideos});
+      if(requestData)watchLaterLoading=true;
+      shell.render('watchlater',{...base,videos:watchLaterVideos,loading:watchLaterLoading});
       if(requestData){requestApi('watchlater');requestApi('subscriptions');} return;
     }
     if(context.route==='favorites') {
@@ -549,6 +570,7 @@
       if(currentContext.strategy==='decorate') {
         preview.destroy();guard.restore();shell.destroy();disconnectInfiniteObserver();clearPreflight();
         watch.mount(watchContext(),callbacks,theme,chromeData());applyThemeOnly();post('state');requestApi('account');
+        ensureWatchLaterState().then(()=>{if(myGeneration===generation&&currentContext&&currentContext.strategy==='decorate')watch.updateContext(watchContext());}).catch(()=>{});
         return;
       }
       watch.destroy();

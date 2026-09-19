@@ -90,6 +90,18 @@ test('topbar mirrors YouTube desktop action hierarchy with dynamic, notification
   assert.match(css, /\.bt-notification-button/);
 });
 
+test('topbar keeps a direct YouTube style switch entry', () => {
+  const ui = read('src/core/ui.js');
+  const options = read('src/options/options.html');
+  const css = read('src/styles/core.css');
+  assert.match(ui, /bt-style-button/);
+  assert.match(ui, /切换到原版 YouTube Desktop 风格/);
+  assert.match(ui, /callbacks\.toggleVisualStyle/);
+  assert.match(options, /id="glassMode"/);
+  assert.match(options, /毛玻璃界面/);
+  assert.match(css, /html\.bt-glass-mode \.bt-topbar/);
+});
+
 test('compact sidebar uses YouTube mini-guide labels instead of icon-only ambiguity', () => {
   const css = read('src/styles/core.css');
   assert.match(css, /\.bt-sidebar\.is-collapsed \.bt-nav-item\{[^}]*flex-direction:column/s);

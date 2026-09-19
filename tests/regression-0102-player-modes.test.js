@@ -21,6 +21,12 @@ test('web fullscreen removes BiliTube chrome while leaving player ownership to B
   assert.doesNotMatch(css, /bt-player-mode-transition/);
 });
 
+test('web fullscreen releases BiliTube region markers before native viewport ownership', () => {
+  const watch = read('src/core/watch.js');
+  assert.match(watch, /function playerScreens\(\)[\s\S]*const player = first\(REGION_DEFS\[4\]\.selectors\)/);
+  assert.match(watch, /const nativeMode = web \|\| wide;[\s\S]*if \(web\) clearMarkers\(\)/);
+});
+
 test('wide mode releases two-column geometry while mini keeps the normal Watch grid', () => {
   const css = read('src/styles/core.css');
   assert.match(css, /html\.bt-player-wide \.bt-watch-native-layout/);

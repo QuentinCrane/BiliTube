@@ -26,7 +26,7 @@ test('video thumbnails use progressive loading states', () => {
   assert.match(ui, /bt-thumb-progress-shimmer/);
   assert.match(css, /\.bt-thumb-image\.is-preview/);
   assert.match(css, /\.bt-thumb\.is-image-loaded \.bt-thumb-progress-shimmer/);
-  assert.match(ui, /fetchPriority=priority\?'high':'auto'/);
+  assert.match(ui, /fetchPriority=.*(?:high|low).*auto/);
 });
 
 test('hover preview has delayed single media, seek control, and destructive cleanup', () => {

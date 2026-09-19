@@ -56,3 +56,15 @@ test('native recommendations are decorated instead of replaced by a duplicate wa
   assert.match(watch, /bt-native-watch-related/);
   assert.match(css, /\.bt-native-watch-related/);
 });
+
+test('watch page exposes a BiliTube-owned watch-later control and syncs its state', () => {
+  const watch = read('src/core/watch.js');
+  const app = read('src/core/app.js');
+  const css = read('src/styles/core.css');
+  assert.match(watch, /bt-watchlater-watch/);
+  assert.match(watch, /callbacks\.toggleWatchLater/);
+  assert.match(watch, /watchData\.bvid/);
+  assert.match(app, /ensureWatchLaterState\(\)\.then/);
+  assert.match(app, /\.bt-watchlater-quick,\.bt-watchlater-watch/);
+  assert.match(css, /\.bt-watchlater-watch/);
+});

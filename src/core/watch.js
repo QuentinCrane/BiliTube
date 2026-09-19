@@ -149,12 +149,50 @@
       return match ? match[1] : '';
     }
 
+    function ensureWatchLaterButton() {
+      if (!authorRow || !watchData || !watchData.bvid || !callbacks.toggleWatchLater) return false;
+      const item = { bvid:String(watchData.bvid), aid:Number(watchData.aid || 0), title:String(watchData.title || '') };
+      let button = authorRow.querySelector('.bt-watchlater-watch');
+      if (!button) {
+        button = UI.e('button', 'bt-watchlater-watch');
+        button.type = 'button';
+        button.append(UI.icon('watchLater'), UI.e('span', 'bt-watchlater-label'));
+        button.addEventListener('click', async (event) => {
+          if (button.classList.contains('is-loading')) return;
+          button.classList.add('is-loading');
+          button.setAttribute('aria-busy', 'true');
+          const nextItem = { bvid:String(button.dataset.bvid || ''), aid:Number(button.dataset.aid || 0), title:String(watchData.title || '') };
+          const next = await callbacks.toggleWatchLater(nextItem, button);
+          button.classList.remove('is-loading');
+          button.removeAttribute('aria-busy');
+          if (typeof next === 'boolean') syncWatchLaterButton(button, next);
+        });
+        authorRow.append(button);
+      }
+      button.dataset.bvid = item.bvid;
+      button.dataset.aid = String(item.aid || '');
+      const active = typeof callbacks.isWatchLater === 'function' && callbacks.isWatchLater(item);
+      syncWatchLaterButton(button, Boolean(active));
+      return true;
+    }
+
+    function syncWatchLaterButton(button, active) {
+      if (!button) return;
+      const title = active ? '从稍后再看移除' : '稍后再看';
+      button.classList.toggle('is-active', Boolean(active));
+      button.setAttribute('aria-pressed', String(Boolean(active)));
+      button.title = title;
+      button.setAttribute('aria-label', title);
+      const label = button.querySelector('.bt-watchlater-label');
+      if (label) label.textContent = active ? '已加入稍后再看' : '稍后再看';
+    }
+
     function ensureAuthorRow() {
       const main = first(['.bt-native-watch-main','.video-container-v1 > .left-container','#mirror-vdcon.video-container-v1 > .left-container','.video-page-container > .left-container']);
       const creator = watchData && watchData.creator || {};
       if (!main || !creator.name) return false;
       const signature = [creator.name || '', creator.href || '', creator.avatar || '', creator.following ? '1' : '0'].join('|');
-      if (authorRow && authorRow.isConnected && authorSignature === signature) return true;
+      if (authorRow && authorRow.isConnected && authorSignature === signature) { ensureWatchLaterButton(); return true; }
       if (!authorRow || !authorRow.isConnected) {
         authorRow = UI.e('section', 'bt-watch-author-row');
         authorRow.dataset.btOwned = 'true';
@@ -197,20 +235,22 @@
         authorRow.append(follow);
       }
       authorSignature = signature;
+      ensureWatchLaterButton();
       return true;
     }
 
     function playerScreens() {
+      const player = first(REGION_DEFS[4].selectors);
+      if (!player) return [];
       const values = [];
-      // The document query already includes player descendants and the player root.
-      const roots = [doc];
-      for (const root of roots) {
-        let nodes = [];
-        try { nodes = Array.from(root.querySelectorAll('[data-screen]')); } catch {}
-        for (const node of nodes) {
-          const value = String(node.getAttribute('data-screen') || '').toLowerCase();
-          if (value) values.push(value);
-        }
+      const nodes = [];
+      try {
+        if (player.hasAttribute && player.hasAttribute('data-screen')) nodes.push(player);
+        nodes.push(...player.querySelectorAll('[data-screen]'));
+      } catch {}
+      for (const node of nodes) {
+        const value = String(node.getAttribute('data-screen') || '').toLowerCase();
+        if (value) values.push(value);
       }
       return values;
     }
@@ -228,6 +268,7 @@
       html.classList.toggle('bt-player-browser-fullscreen', browserFull);
       const nativeMode = web || wide;
       if (nativeMode) {
+        if (web) clearMarkers();
         if (regionObserver) { regionObserver.disconnect(); regionObserver = null; }
         if (classObserver) { classObserver.disconnect(); classObserver = null; }
       } else if (modeObserver && !regionObserver) {
