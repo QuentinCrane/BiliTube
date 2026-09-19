@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "BiliTube",
+  "version": "0.12.4",
+  "description": "BiliTube 0.12.4：Watch 页面新增 document_start 预布局，减少 Bilibili 原布局先绘制导致的首屏抽动；标题信息容器强制回归内容高度并进一步收紧作者行间距。",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.bilibili.com/*",
+    "*://bilibili.com/*",
+    "*://api.bilibili.com/*",
+    "*://*.hdslb.com/*",
+    "*://*.bilivideo.com/*"
+  ],
+  "icons": {
+    "16": "assets/icon-16.png",
+    "32": "assets/icon-32.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  },
+  "options_page": "src/options/options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.bilibili.com/*",
+        "*://bilibili.com/*"
+      ],
+      "js": [
+        "src/page/bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://*.bilibili.com/*",
+        "*://bilibili.com/*"
+      ],
+      "css": [
+        "src/styles/preflight.css",
+        "src/styles/core.css"
+      ],
+      "js": [
+        "src/page/preflight.js",
+        "src/core/policy.js",
+        "src/core/theme.js",
+        "src/core/cache.js",
+        "src/core/preview-model.js",
+        "src/core/api-client.js",
+        "src/core/data.js",
+        "src/core/native-visibility.js",
+        "src/core/extract.js",
+        "src/core/preview.js",
+        "src/core/ui.js",
+        "src/core/shell.js",
+        "src/core/native-adapter.js",
+        "src/core/actions.js",
+        "src/core/watch.js",
+        "src/core/app.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  }
+}

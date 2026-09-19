@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BiliTube 设置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <header class="settings-topbar">
+    <a class="settings-brand" href="https://www.bilibili.com/" target="_blank" rel="noreferrer">
+      <span class="settings-brand-mark">▶</span><strong>BiliTube</strong>
+    </a>
+    <span class="settings-title">设置</span>
+  </header>
+
+  <div class="settings-shell">
+    <aside class="settings-nav" aria-label="设置导航">
+      <div class="settings-nav-title">设置</div>
+      <a class="is-active" href="#appearance">外观</a>
+      <a href="#navigation">导航</a>
+      <a href="#home">首页</a>
+      <a href="#playback">播放与预览</a>
+      <a href="#search">搜索</a>
+      <a href="#content">内容</a>
+      <div class="settings-nav-divider"></div>
+      <p>v0.11.0<br>YouTube Desktop Parity</p>
+    </aside>
+
+    <main class="settings">
+      <header class="page-head">
+        <h1>设置</h1>
+        <p>调整 BiliTube 在 Bilibili 上的 YouTube Desktop 风格与行为。</p>
+      </header>
+
+      <section class="group" id="appearance">
+        <div class="group-head"><h2>外观</h2><p>控制整站基础状态与统一主题。</p></div>
+        <div class="card">
+          <label class="row"><span><strong>启用 BiliTube</strong><small>关闭后恢复原版 Bilibili 页面。</small></span><input id="enabled" type="checkbox"></label>
+          <label class="row"><span><strong>主题</strong><small>顶栏、侧栏和 BiliTube 重绘页面同步切换。</small></span><select id="theme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
+        </div>
+      </section>
+
+      <section class="group" id="navigation">
+        <div class="group-head"><h2>导航</h2><p>控制 YouTube 风左侧导航和订阅列表。</p></div>
+        <div class="card">
+          <label class="row"><span><strong>默认折叠侧栏</strong><small>重绘页面默认使用 72px 紧凑侧栏；视频等原生页面仍通过菜单打开抽屉。</small></span><input id="sidebarCollapsed" type="checkbox"></label>
+          <label class="row"><span><strong>显示订阅列表</strong><small>在左侧栏显示近期订阅 UP 主和直播状态。</small></span><input id="showSubscriptions" type="checkbox"></label>
+        </div>
+      </section>
+
+      <section class="group" id="home">
+        <div class="group-head"><h2>首页</h2><p>决定 YouTube 风推荐流中穿插哪些 Bilibili 特色 Shelf。</p></div>
+        <div class="card">
+          <label class="row"><span><strong>关注更新</strong><small>显示“来自你的关注”横向 Shelf。</small></span><input id="homeFollowedShelf" type="checkbox"></label>
+          <label class="row"><span><strong>正在直播</strong><small>显示直播推荐 Shelf。</small></span><input id="homeLiveShelf" type="checkbox"></label>
+          <label class="row"><span><strong>番剧最近更新</strong><small>显示番剧更新 Shelf。</small></span><input id="homeBangumiShelf" type="checkbox"></label>
+          <label class="row"><span><strong>热门内容</strong><small>显示热门视频 Shelf。</small></span><input id="homePopularShelf" type="checkbox"></label>
+        </div>
+      </section>
+
+      <section class="group" id="playback">
+        <div class="group-head"><h2>播放与预览</h2><p>播放页业务交互保持 Bilibili 原生，卡片预览由 BiliTube 提供。</p></div>
+        <div class="card">
+          <label class="row"><span><strong>Hover 视频预览</strong><small>鼠标悬浮缩略图时播放无声预览，并保留底部拖动进度条。</small></span><input id="hoverPreview" type="checkbox"></label>
+          <label class="row"><span><strong>预览启动延迟</strong><small>避免鼠标快速扫过卡片时频繁请求视频。</small></span><select id="hoverPreviewDelay"><option value="250">250 ms</option><option value="500">500 ms</option><option value="750">750 ms</option></select></label>
+          <label class="row"><span><strong>稍后再看快捷按钮</strong><small>Hover 视频缩略图时，在右上角显示 YouTube 式时钟按钮。</small></span><input id="watchLaterQuick" type="checkbox"></label>
+        </div>
+      </section>
+
+      <section class="group" id="search">
+        <div class="group-head"><h2>搜索</h2><p>保留 Bilibili 官方搜索结构，再用 YouTube 风结果页展示。</p></div>
+        <div class="card">
+          <label class="row"><span><strong>实时搜索建议</strong><small>输入关键词约 180ms 后显示 Bilibili 官方联想词。</small></span><input id="searchSuggestions" type="checkbox"></label>
+        </div>
+      </section>
+
+      <section class="group" id="content">
+        <div class="group-head"><h2>内容</h2><p>控制 BiliTube 对页面非核心内容的处理。</p></div>
+        <div class="card">
+          <label class="row"><span><strong>隐藏已识别广告位</strong><small>隐藏已识别的 B站广告卡和横幅，不影响普通推荐内容。</small></span><input id="hideAds" type="checkbox"></label>
+        </div>
+      </section>
+
+      <section class="about-card" aria-label="播放页兼容说明">
+        <strong>Native-first 播放页</strong>
+        <p>播放器、UP、关注、点赞 / 投币 / 收藏 / 分享、简介、评论和相关推荐始终留在 Bilibili 原来的 DOM 中。BiliTube 只做 YouTube Desktop 风格的外层排版与安全的视觉修饰。</p>
+      </section>
+    </main>
+  </div>
+  <div id="status" role="status"></div>
+  <script src="options.js"></script>
+</body>
+</html>
