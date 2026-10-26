@@ -225,6 +225,7 @@
       const publishedText = String(author.pub_time || '').trim() || formatRelativeTime(publishedAt, nowSeconds);
       const output = {
         id: String(item && (item.id_str || item.id) || ''),
+        href: /^\d+$/.test(String(item && (item.id_str || item.id) || '')) ? `https://t.bilibili.com/${item.id_str || item.id}` : '',
         type: String(item && item.type || ''),
         author: String(author.name || '').trim(),
         avatar: mediaUrl(author.face),
@@ -241,6 +242,7 @@
         output.video = {
           kind: 'video', bvid: String(archive.bvid), title: String(archive.title),
           href: `https://www.bilibili.com/video/${archive.bvid}`,
+          dynamicHref: output.href,
           thumbnail: mediaUrl(archive.cover), duration: formatDuration(archive.duration),
           author: output.author, avatar: output.avatar, authorHref: output.authorHref,
           publishedAt,

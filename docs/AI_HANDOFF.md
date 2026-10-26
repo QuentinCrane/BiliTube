@@ -6,7 +6,7 @@
 
 - Project: BiliTube
 - Repository: `https://github.com/QuentinCrane/BiliTube`
-- Extension version: `0.12.4`
+- Extension version: `0.12.5`
 - Manifest: Manifest V3
 - Main branch: `main`
 - License: MIT
@@ -82,7 +82,7 @@ node scripts/verify.mjs
 git diff --check
 ```
 
-当前自动测试通过并覆盖 205 项。真实 Bilibili 页面仍要在当前 Edge/Chrome 中重新确认，尤其是：
+当前自动测试通过并覆盖 249 项。临时未登录 Edge 配置已验证一次相关推荐同页切换后播放器仍可见且持续播放；登录态和其他页面的人工验收仍需单独确认，尤其是：
 
 1. 首页无限滚动时旧图片保持清晰；
 2. Watch 原生播放器、toolbar、评论和相关推荐；

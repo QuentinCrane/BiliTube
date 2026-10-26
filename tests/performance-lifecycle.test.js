@@ -81,3 +81,16 @@ test('duplicate video cards cannot cancel each other and the controller can be r
   h.controller.destroy();
   assert.equal(first.count(), 0);
 });
+
+test('repeated pointer entry on the active card does not restart its pending preview', () => {
+  const h=harness(),card=h.card();h.controller.bind(card,{bvid:'BVsame'},{});
+  card.fire('pointerenter');const timer=[...h.timers.keys()][0];card.fire('pointerenter');
+  assert.deepEqual([...h.timers.keys()],[timer]);h.controller.destroy();
+});
+
+test('reconciliation prunes only detached preview cards', () => {
+  const h=harness(),retained=h.card(),removed=h.card();retained.isConnected=true;removed.isConnected=false;
+  h.controller.bind(retained,{bvid:'BVkeep'},{});h.controller.bind(removed,{bvid:'BVremoved'},{});
+  removed.fire('pointerenter');h.controller.prune();assert.equal(removed.count(),0);assert.equal(h.timers.size,0);
+  assert.equal(retained.count(),3);assert.equal(h.observed.size,1);h.controller.destroy();
+});

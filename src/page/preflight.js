@@ -15,7 +15,7 @@
     const sub = match ? String(match[2] || '').toLowerCase() : '';
     replace = Boolean(match && (!sub || sub === 'home' || sub === 'upload' || sub === 'video' || sub === 'favlist'));
   } else if (host === 't.bilibili.com') {
-    replace = !/^\/(?:vote|share)(?:\/|$)/.test(path);
+    replace = path === '/' || path === '';
   }
 
   if (replace && !nativeEscape) document.documentElement.classList.add('bilitube-core-preflight');
@@ -32,6 +32,8 @@
       const systemDark = matchMedia('(prefers-color-scheme: dark)').matches;
       const theme = saved.theme === 'dark' ? 'dark' : saved.theme === 'light' ? 'light' : systemDark ? 'dark' : 'light';
       document.documentElement.dataset.btTheme = theme;
+      document.documentElement.classList.toggle('bt-glass-mode', saved.glassMode !== false);
+      document.documentElement.classList.toggle('bt-hide-ads', saved.hideAds !== false);
     });
   } catch {}
 })();

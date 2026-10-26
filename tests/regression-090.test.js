@@ -61,7 +61,7 @@ test('theme bridge updates html first and exports Bilibili native variables with
   assert.match(app, /startViewTransition/);
   assert.match(css, /--bg1:/);
   assert.match(css, /--text1:/);
-  assert.match(css, /bt-theme-animating/);
+  assert.match(css, /bt-theme-reveal/);
   assert.doesNotMatch(css, /bt-theme-switching[^\n]*transition\s*:\s*none!important/);
 });
 

@@ -88,6 +88,40 @@ git diff --check
 
 ## Manual acceptance matrix
 
+### Theme transition and Watch startup
+
+```powershell
+python scripts/watch_layout_smoke.py
+python scripts/media_continuity_smoke.py
+python scripts/theme_performance_probe.py --runs 3 --scale 2
+python scripts/watch_startup_probe.py --decorated-only --seconds 8
+```
+
+前两项使用隔离页面：检查四种宽度下预绘、挂载与作者信息到达的几何一致性、超时回退、媒体节点与播放连续性、快速主题反转及关闭动效设置。后两项在临时 Edge 配置中加载实际扩展，访问未登录的公开搜索与播放页；分别记录 RAF/绘制轨迹及媒体事件/区域坐标/布局偏移来源。真实帧率仍取决于浏览器、硬件和显示器，生产播放器内部的布局变化需要与 BiliTube 外层几何分别判断。
+
+### Related-video navigation
+
+```powershell
+python scripts/watch_navigation_probe.py --clicks 5
+```
+
+在临时、未登录 Edge 配置中加载实际扩展，点击原生右侧推荐链接并记录每次切换的截图、播放器位置、媒体状态与 document timeOrigin，输出在 `output/watch-navigation/`。相同 timeOrigin 表示同页导航；检查要求完成指定次数且播放器保持在标题上方。实际媒体状态单独记录，网络失败或视频权限可能影响播放。
+
+`watch_layout_smoke.py` 同时模拟原站清除播放器 class、将原生高度设为 0、替换外层容器和延迟插入评论；检查播放器位置、媒体节点身份、mini / wide / web 模式退出后的恢复以及销毁后监听释放。
+
+### Refresh, failure recovery and responsive layout
+
+`python scripts/refresh_experience_smoke.py` 在独立 Edge 中注入仓库运行代码和确定性的接口数据，验证以下行为，并将报告和截图写入 `output/playwright/refresh-experience/`：
+
+- 主动刷新保留旧卡片、缩略图和搜索草稿；迟到的分页响应不能覆盖新结果。
+- 分页失败停止自动重试，用户点击重试后继续原页；刷新成功后从新的第一页继续分页。
+- 稍后再看刷新失败保留已有列表，成功的空响应清空列表并提供首页入口。
+- 搜索建议关闭后不再被迟到响应打开，方向键提供可访问的选中状态，中文输入确认保持原生行为。
+- 刷新后的横向内容栏可继续滚动；久置标签页返回时显示更新提示。
+- 首页、搜索、收藏夹、动态、稍后再看、深浅色和 390px 布局；窄窗口导航文字可见，Escape 关闭并恢复焦点。
+
+该脚本使用虚构内容和本地 SVG 测试封面，不连接真实账号，不证明扩展打包加载或当前 Bilibili 登录态接口兼容性。生产页面验收仍使用下方矩阵。
+
 ### Home and library
 
 - [ ] 首页卡片左键打开视频。
@@ -109,6 +143,7 @@ git diff --check
 - [ ] 点赞、投币、收藏、分享和三连仍使用 Bilibili 原生 toolbar。
 - [ ] 评论列表、评论输入、回复和楼中楼仍可用。
 - [ ] 相关推荐封面、标题和 UP 链接可点击。
+- [ ] 连续从右侧推荐进入其他视频，无需刷新，播放器始终位于标题上方且可以播放。
 - [ ] 宽屏、网页全屏、浏览器真全屏和 mini-player 进出正常。
 - [ ] Watch 的菜单可以打开 Sidebar Drawer，遮罩可以关闭。
 

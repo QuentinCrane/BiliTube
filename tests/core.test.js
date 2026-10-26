@@ -54,6 +54,42 @@ test('theme preference resolves without changing route state', () => {
   assert.equal(Theme.nextExplicit('dark'), 'light');
 });
 
+test('theme changes commit immediately when animation is disabled or unavailable', () => {
+  let committed=0;
+  const doc={documentElement:{classList:{remove(){}},animate:()=>assert.fail('no animation expected')},startViewTransition:()=>assert.fail('no snapshot expected')};
+  Theme.createRevealController(doc).run(()=>committed++,null,false);
+  delete doc.startViewTransition;
+  Theme.createRevealController(doc).run(()=>committed++,null,true);
+  assert.equal(committed,2);
+});
+
+test('a newer theme request prevents an older snapshot commit and cleanup', async () => {
+  const classes=new Set(),transitions=[],animations=[];
+  const html={classList:{add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name))},animate:(frames,options)=>animations.push({frames,options})};
+  const doc={documentElement:html,defaultView:{innerWidth:1000,innerHeight:600},startViewTransition(commit){
+    let ready,finish;const t={commit,ready:new Promise(resolve=>{ready=resolve}),finished:new Promise(resolve=>{finish=resolve}),skipTransition:()=>{},readyNow:()=>{commit();ready();},finishNow:()=>finish()};transitions.push(t);return t;
+  }};
+  const reveal=Theme.createRevealController(doc);let theme='light';
+  reveal.run(()=>{theme='old'},null);const last=reveal.run(()=>{theme='dark'},null);
+  transitions[0].readyNow();transitions[0].finishNow();await Promise.resolve();await Promise.resolve();
+  assert.equal(theme,'light');assert.equal(classes.has('bt-theme-reveal'),true);
+  transitions[1].readyNow();await Promise.resolve();assert.equal(theme,'dark');assert.equal(animations.length,1);
+  assert.deepEqual(animations[0].frames,{opacity:[1,0]});
+  assert.equal(animations[0].options.pseudoElement,'::view-transition-old(root)');
+  assert.ok(animations[0].options.duration<=200);
+  transitions[1].finishNow();await last;await Promise.resolve();await Promise.resolve();assert.equal(classes.has('bt-theme-reveal'),false);
+});
+
+test('theme capture suspends only running decorators and restores them on cancellation',()=>{
+  let played=0,paused=0,finish;
+  const decorator={playState:'running',effect:{target:{}},pause(){paused++;this.playState='paused'},play(){played++;this.playState='running'}};
+  const alreadyPaused={playState:'paused',effect:{target:{}},pause:()=>assert.fail('must retain pre-existing pause'),play:()=>assert.fail('must not resume unrelated paused animation')};
+  const html={classList:{add(){},remove(){}},animate(){}};
+  const doc={documentElement:html,defaultView:{innerWidth:1000,innerHeight:600},getAnimations:()=>[decorator,alreadyPaused],startViewTransition:()=>({ready:new Promise(()=>{}),finished:new Promise(resolve=>{finish=resolve}),skipTransition:()=>finish()})};
+  const reveal=Theme.createRevealController(doc);reveal.run(()=>{},null);
+  assert.equal(paused,1);assert.equal(played,0);reveal.cancel();assert.equal(played,1);assert.equal(decorator.playState,'running');
+});
+
 test('cache expires entries by ttl', async () => {
   let now = 1000;
   const cache = Cache.createCache(() => now);
@@ -76,6 +112,51 @@ test('cache remember deduplicates inflight requests', async () => {
   assert.equal(a, 'ok');
   assert.equal(b, 'ok');
   assert.equal(calls, 1);
+});
+
+test('cache bounds entries, keeps recent reads and evicts expired values on insertion', () => {
+  let now=100;
+  const cache=Cache.createCache(()=>now,2);
+  cache.set('a',1);cache.set('b',2);cache.get('a');cache.set('c',3);
+  assert.equal(cache.get('b'),undefined);
+  assert.equal(cache.get('a'),1);
+  cache.set('short',4,10);now=110;cache.set('fresh',5);
+  assert.equal(cache.get('short'),undefined);
+  assert.equal(cache.get('fresh'),5);
+});
+
+test('clearing cache prevents a pending read from repopulating or deleting a newer request', async () => {
+  const cache=Cache.createCache();let oldReply,newReply;
+  const old=cache.remember('key',1000,()=>new Promise(resolve=>{oldReply=resolve;}));
+  await Promise.resolve();cache.clear();
+  const fresh=cache.remember('key',1000,()=>new Promise(resolve=>{newReply=resolve;}));
+  await Promise.resolve();oldReply('old');await old;
+  assert.equal(cache.get('key'),undefined);
+  let unexpected=false;
+  const shared=cache.remember('key',1000,()=>{unexpected=true;return 'wrong';});
+  newReply('new');assert.equal(await fresh,'new');assert.equal(await shared,'new');
+  assert.equal(unexpected,false);assert.equal(cache.get('key'),'new');
+});
+
+test('dynamic detail, unsupported search filters and native collection types retain native business UI', () => {
+  const routes=[
+    ['https://t.bilibili.com/123456789','dynamic-detail'],
+    ['https://t.bilibili.com/vote/123','dynamic-native'],
+    ['https://search.bilibili.com/video?keyword=demo&tids=3','search-native'],
+    ['https://search.bilibili.com/upuser?keyword=demo&order=fans','search-native'],
+    ['https://search.bilibili.com/all?keyword=demo&duration=1','search-native'],
+    ['https://space.bilibili.com/123/favlist?fid=42&ftype=collect','space-favlist'],
+    ['https://www.bilibili.com/list/watchlater?bvid=BVdemo','playlist-watch'],
+  ];
+  for(const [url,route] of routes){const context=Policy.resolve(loc(url));assert.equal(context.route,route,url);assert.equal(context.strategy,'adapt',url);}
+  assert.equal(Policy.resolve(loc('https://search.bilibili.com/video?keyword=demo&order=click&duration=2')).strategy,'replace');
+});
+
+test('tracking parameters do not change navigation identity but content filters do', () => {
+  const base=new URL('https://search.bilibili.com/video?keyword=demo&order=click');
+  const tracking=new URL('https://search.bilibili.com/video?order=click&keyword=demo&spm_id_from=333&vd_source=fixture');
+  assert.equal(Policy.navigationIdentity(base),Policy.navigationIdentity(tracking));
+  tracking.searchParams.set('duration','2');assert.notEqual(Policy.navigationIdentity(base),Policy.navigationIdentity(tracking));
 });
 
 test('preview seek math clamps to media bounds', () => {

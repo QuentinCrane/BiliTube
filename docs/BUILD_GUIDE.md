@@ -97,11 +97,11 @@ node scripts/verify.mjs
 下面的示例只复制当前仓库的发布所需目录。执行前请把版本号替换成 `manifest.json` 中的实际值，并确认目标目录是专门的发布目录：
 
 ```powershell
-$release = Join-Path (Get-Location) 'release\BiliTube-v0.12.4'
+$release = Join-Path (Get-Location) 'release\BiliTube-v0.12.5'
 New-Item -ItemType Directory -Force -Path $release | Out-Null
 Copy-Item manifest.json,LICENSE,README.md,CHANGELOG.md,PAGE_AUDIT.md -Destination $release
 Copy-Item _locales,assets,src -Destination $release -Recurse
-Compress-Archive -Path (Join-Path $release '*') -DestinationPath (Join-Path (Split-Path $release) 'BiliTube-v0.12.4.zip') -Force
+Compress-Archive -Path (Join-Path $release '*') -DestinationPath (Join-Path (Split-Path $release) 'BiliTube-v0.12.5.zip') -Force
 ```
 
 这是一个可读的发布示例，不是仓库的构建脚本；如果项目以后增加正式 release 脚本，应让脚本复用同一份清单并加入独立的干净目录验证。

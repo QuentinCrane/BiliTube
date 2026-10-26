@@ -11,22 +11,25 @@
   function createController(options = {}) {
     const requestMedia = options.requestMedia || (() => {});
     const getDelay = options.getDelay || (() => 500);
+    const shouldRetain = options.shouldRetain || (() => false);
     const cached = new Map();
     let active = null;
     const offscreen = new WeakSet();
     const bindings = new Map();
+    const trackPointer=event=>{if(active)active.point={x:event.clientX,y:event.clientY};};
     const observer = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (entry.isIntersecting) offscreen.delete(entry.target);
         else {
           offscreen.add(entry.target);
-          if (active && active.card === entry.target) cleanupActive();
+          if (active && active.card === entry.target && !shouldRetain()) cleanupActive();
         }
       }
     }, { rootMargin: '240px 0px' }) : null;
 
     function cleanupActive() {
       if (!active) return;
+      if(typeof document!=='undefined')document.removeEventListener('pointermove',trackPointer,true);
       if (active.timer) clearTimeout(active.timer);
       if (active.leaveTimer) clearTimeout(active.leaveTimer);
       if (active.video) {
@@ -106,32 +109,37 @@
       if (p && typeof p.catch === 'function') p.catch(fail);
     }
 
-    function begin(id, host, card) {
+    function begin(id, host, card, event) {
+      if(active&&active.card===card){if(active.leaveTimer){clearTimeout(active.leaveTimer);active.leaveTimer=null;}return;}
       cleanupActive();
       const session = { id, host, card, timer: null, leaveTimer: null, layer: null, video: null };
+      if(event&&Number.isFinite(event.clientX))session.point={x:event.clientX,y:event.clientY};
       active = session;
+      if(typeof document!=='undefined')document.addEventListener('pointermove',trackPointer,{capture:true,passive:true});
       session.timer = setTimeout(() => {
         session.timer = null;
         if (active !== session) return;
         const known = cached.get(id);
-        if (known) mountMedia(session, known);
+        if (known && known.expiresAt > Date.now()) { cached.delete(id); cached.set(id,known); mountMedia(session, known.url); }
         else requestMedia(id);
       }, Math.max(0, Math.min(2000, Number(getDelay()) || 500)));
     }
 
     function bind(card, item, host) {
       if (!card || !item || !item.bvid || !host) return () => {};
+      if(active&&active.card===card&&active.host!==host)cleanupActive();
       if (bindings.has(card)) bindings.get(card)();
       const id = String(item.bvid);
       if (observer) observer.observe(card);
-      const enter = () => {
+      const enter = (event) => {
         if (active && active.card === card && active.leaveTimer) { clearTimeout(active.leaveTimer); active.leaveTimer = null; return; }
-        if (!offscreen.has(card)) begin(id, host, card);
+        if (!offscreen.has(card)) begin(id, host, card, event);
       };
       const leave = () => {
         if (!active || active.card !== card) return;
+        if(shouldRetain())return;
         if (active.leaveTimer) clearTimeout(active.leaveTimer);
-        active.leaveTimer = setTimeout(() => { if (active && active.card === card) cleanupActive(); }, 120);
+        active.leaveTimer = setTimeout(() => { if (active && active.card === card && !shouldRetain()) cleanupActive(); }, 120);
       };
       const focusout = (event) => { if (!card.contains(event.relatedTarget)) leave(); };
       card.addEventListener('pointerenter', enter);
@@ -154,7 +162,10 @@
     }
 
     function resolve(id, url) {
-      if (url) cached.set(String(id), url);
+      if (url) {
+        cached.delete(String(id));cached.set(String(id), {url,expiresAt:Date.now()+120000});
+        while(cached.size>64)cached.delete(cached.keys().next().value);
+      }
       if (active && active.id === String(id) && !active.timer && !active.video && url) mountMedia(active, url);
     }
 
@@ -164,7 +175,15 @@
       if (observer) observer.disconnect();
     }
 
-    return { bind, resolve, destroy, seekTime: Model && Model.seekTime };
+    function prune(){for(const [card,unbind] of bindings)if(!card.isConnected){if(active&&active.card===card)cleanupActive();unbind();}}
+    function resume(){
+      if(!active||shouldRetain()||typeof active.card.matches!=='function')return;
+      const rect=active.point&&active.card.getBoundingClientRect();
+      const inside=rect&&active.point.x>=rect.left&&active.point.x<=rect.right&&active.point.y>=rect.top&&active.point.y<=rect.bottom;
+      if(!inside&&!active.card.matches(':hover')&&!active.card.contains(document.activeElement))cleanupActive();
+    }
+
+    return { bind, resolve, destroy, prune, resume, seekTime: Model && Model.seekTime };
   }
   return { createController };
 });

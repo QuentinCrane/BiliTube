@@ -15,17 +15,30 @@ function t(key, fallback, substitutions) {
 }
 
 const cache = new Map();
+const CACHE_LIMIT = 256;
 function cached(key, ttl, loader) {
   const now = Date.now();
   const item = cache.get(key);
-  if (item && item.expiresAt > now) return item.value;
+  if (item && item.expiresAt > now) {
+    cache.delete(key); cache.set(key, item);
+    return item.value;
+  }
+  for (const [id, entry] of cache) if (entry.expiresAt <= now) cache.delete(id);
   const value = Promise.resolve().then(loader).catch(() => null);
-  cache.set(key, { value, expiresAt: now + ttl });
-  value.then((resolved) => cache.set(key, { value: Promise.resolve(resolved), expiresAt: Date.now() + ttl }));
+  const entry = { value, expiresAt: now + ttl };
+  cache.delete(key); cache.set(key, entry);
+  while (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value);
+  // A write or eviction may invalidate this entry before the read completes.
+  value.then((resolved) => {
+    if (cache.get(key) !== entry) return;
+    if (resolved == null || resolved.code != null && resolved.code !== 0) cache.delete(key);
+    else entry.expiresAt = Date.now() + ttl;
+  });
   return value;
 }
 async function json(url) {
-  const response = await fetch(url, { credentials:'include', headers:{ Accept:'application/json, text/plain, */*' } });
+  const signal=typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function'?AbortSignal.timeout(3500):undefined;
+  const response = await fetch(url, { credentials:'include', cache:'no-store', signal, headers:{ Accept:'application/json, text/plain, */*' } });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
@@ -110,6 +123,19 @@ async function freshView(bvid, aid) {
 }
 
 async function handle(type, params = {}) {
+  // Drop later pages too, so pagination after a refresh uses the new feed.
+  // The cache's entry check prevents older reads from refilling these entries.
+  if (params.forceFresh === true) {
+    const prefixes = {
+      home:['home:'], 'home-category':[`home-category:${params.category || ''}`],
+      'home-sections':['home-sections'], search:['search:'], dynamic:['dynamic:'],
+      watchlater:['watchlater'], favorites:['favorite-folders:','favorite-resources:'],
+      'space-profile':[`space-profile:${digits(params.mid)}`],
+      'space-archives':[`space-archives:${digits(params.mid)}:`],
+      account:['account'], subscriptions:['subscriptions'], history:['history:'],
+    }[type] || [];
+    for (const key of cache.keys()) if (prefixes.some(prefix => key.startsWith(prefix))) cache.delete(key);
+  }
   if (type === 'home') {
     const page = Math.max(1, Math.min(50, Number(params.page || params.freshIdx || 1) || 1));
     const ps = 30;
@@ -154,18 +180,21 @@ async function handle(type, params = {}) {
     const keyword = String(params.keyword || '').trim();
     const page = Math.max(1, Math.min(50, Number(params.page || 1) || 1));
     const category = String(params.category || 'video');
+    const order = ['totalrank','click','pubdate','dm','stow','scores'].includes(params.order) ? params.order : 'totalrank';
+    const duration = /^[0-4]$/.test(String(params.duration ?? 0)) ? Number(params.duration || 0) : 0;
     if (!keyword) return null;
     const typeMap = { video:'video', user:'bili_user', bangumi:'media_bangumi', media:'media_ft' };
     const runTypedSearch = (searchType) => {
       const searchParams = {
         search_type:searchType, keyword, page, page_size:searchType==='bili_user'?36:searchType==='video'?42:12,
-        order:searchType==='bili_user'?'':searchType==='video'?'totalrank':'', duration:0,
+        order:searchType==='video'?order:'', duration:searchType==='video'?duration:0,
         category_id:'', ad_resource:searchType==='video'?5654:5646, __refresh__:true, context:'', from_spmid:'333.337',
         platform:'pc', highlight:1, single_column:0, source_tag:3, dynamic_offset:0,
         web_roll_page:1, web_location:1430654, order_sort:0, user_type:0,
       };
       const legacy = new URLSearchParams({ search_type:searchType, keyword, page:String(page), page_size:String(searchParams.page_size) });
       if (searchParams.order) legacy.set('order', searchParams.order);
+      if (searchType === 'video') legacy.set('duration', String(duration));
       return wbiFirst('/x/web-interface/wbi/search/type', searchParams, [
         `https://api.bilibili.com/x/web-interface/search/type?${legacy}`,
       ]);
@@ -182,7 +211,7 @@ async function handle(type, params = {}) {
       ]));
     }
     const searchType = typeMap[category] || 'video';
-    return cached(`search:${searchType}:${keyword}:${page}`, 12000, () => runTypedSearch(searchType));
+    return cached(`search:${searchType}:${keyword}:${page}:${order}:${duration}`, 12000, () => runTypedSearch(searchType));
   }
   if (type === 'account') return cached('account', 30000, () => json('https://api.bilibili.com/x/web-interface/nav'));
   if (type === 'subscriptions') return cached('subscriptions', 45000, () => json('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/nav'));

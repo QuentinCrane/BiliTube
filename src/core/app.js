@@ -27,21 +27,24 @@
   let generation = 0;
   let routeController = null;
   let currentContext = null;
-  let bridgeState = { user:null, video:null };
+  let mountedHref = '';
+  let bridgeState = { user:null, video:null, hydrated:false };
   let subscriptions = [];
   let dynamicSubscriptions = [];
   let homeVideos = [];
-  let homeCategoryVideos = [], homeCategoryLoading = false, homeCategoryError = '';
+  let homeCategoryVideos = [], homeCategoryLoading = false, homeCategoryError = '', homeCategoryKey = '';
   let homeShelves = [];
-  let homePage = 1, homeLoading = false, homeHasMore = true;
+  let homeSectionsLoading = false, homeSectionsError = '';
+  let homePage = 1, homeLoading = false, homeHasMore = true, homeError = '';
   let searchVideos = [], searchUsers = [], searchPage = 1, searchLoading = false, searchHasMore = true, searchError = '', searchQueryKey = '', searchCategoryKey = 'all';
   let historyVideos = [];
   let historyCursor = { max:0, business:'', viewAt:0 };
   let historyLoading = false, historyHasMore = true, historyError = '', historyPaused = false;
   let dynamicItems = [];
   let dynamicOffset = '', dynamicLoading = false, dynamicHasMore = true, dynamicError = '';
-  let watchLaterVideos = [], watchLaterLoading = false;
+  let watchLaterVideos = [], watchLaterLoading = false, watchLaterError = '';
   let watchLaterBvids = new Set(), watchLaterAids = new Set(), watchLaterStateLoaded = false, watchLaterStatePromise = null;
+  let watchLaterReadSeq = 0;
   let infiniteObserver = null;
   let favoriteFolders = [];
   let favoriteVideos = [];
@@ -56,7 +59,13 @@
   let bridgeWriteSeq = 0;
   const bridgeWritePending = new Map();
   let rerenderTimer = null;
+  let rerenderAppend = false;
+  const pendingSettingWrites = new Set();
+  let feedRevision = 0, refreshStatus = '', hiddenAt = 0;
+  const refreshPending = new Set(), failedRequests = new Map();
+  const feedTypes = new Set(['home','home-category','home-sections','search','dynamic','watchlater','favorites','space-profile','space-archives']);
 
+  const themeReveal=Theme.createRevealController(document);
   const shell = Shell.createController(document);
   const guard = NativeVisibility.createGuard(document);
   const watch = Watch.createDecorator(document);
@@ -68,6 +77,7 @@
       preview.resolve(bvid, result && result.url || '');
     },
     getDelay: () => settings.hoverPreviewDelay,
+    shouldRetain:()=>document.documentElement.classList.contains('bt-theme-reveal'),
   });
   const mediaQuery = matchMedia('(prefers-color-scheme: dark)');
 
@@ -96,13 +106,13 @@
   }
   function chromeData() {
     const sidebarSubscriptions = currentContext && currentContext.route === 'dynamic' && dynamicSubscriptions.length ? dynamicSubscriptions : subscriptions;
-    return { user:normalizeUser(bridgeState.user), subscriptions:sidebarSubscriptions, query:currentQuery(), route:currentContext&&currentContext.route||'', settings };
+    return { href:location.href, renderKey:Policy.navigationIdentity(location), user:normalizeUser(bridgeState.user), subscriptions:sidebarSubscriptions, query:currentQuery(), route:currentContext&&currentContext.route||'', settings };
   }
   function clearPreflight() { document.documentElement.classList.remove('bilitube-core-preflight'); }
   function applyThemeOnly(options = {}) {
     const theme = effectiveTheme();
     const html = document.documentElement;
-    const animate = options.animate === true && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const animate = options.animate === true && settings.motionMode !== 'none' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
     const commit = () => {
       html.dataset.btTheme = theme;
       html.classList.toggle('bt-hide-ads', settings.hideAds !== false);
@@ -114,7 +124,7 @@
       nativeAdapter.updateTheme(theme);
       syncVisualStyleButtons();
     };
-    if (!animate) { commit(); return; }
+    if (!animate) { themeReveal.cancel();commit(); return; }
     if (options.visualStyle) {
       html.classList.add('bt-style-switching');
       const finishStyleSwitch = () => html.classList.remove('bt-style-switching');
@@ -123,21 +133,15 @@
       else runStyleSwitch();
       return;
     }
-    html.classList.add('bt-theme-switching','bt-theme-animating');
-    const finish = () => html.classList.remove('bt-theme-switching','bt-theme-animating');
-    if (options.viewTransition === true && typeof document.startViewTransition === 'function') {
-      try {
-        const transition = document.startViewTransition(commit);
-        Promise.resolve(transition && transition.finished).catch(() => {}).finally(finish);
-        return;
-      } catch {}
-    }
-    commit();
-    setTimeout(finish, 220);
+    // startViewTransition keeps media intact while one snapshot fades out.
+    Promise.resolve(themeReveal.run(commit,options.origin,true)).finally(()=>{if(preview.resume)preview.resume();});
   }
+
   function persist(patch) {
     settings = { ...settings, ...patch };
-    try { chrome.storage.local.set({ bilitubeCoreSettings:settings }); } catch {}
+    const signature=JSON.stringify(settings);pendingSettingWrites.add(signature);
+    while(pendingSettingWrites.size>16)pendingSettingWrites.delete(pendingSettingWrites.values().next().value);
+    try { chrome.storage.local.set({ bilitubeCoreSettings:settings }); } catch {pendingSettingWrites.delete(signature);}
   }
   function showToast(text) {
     let node = document.getElementById('bilitube-core-toast');
@@ -151,7 +155,7 @@
     const title=glassMode?T('style_original','切换到原版 YouTube Desktop 风格'):T('style_glass','切换到毛玻璃界面');
     document.querySelectorAll('.bt-style-button').forEach(button=>{button.title=title;button.setAttribute('aria-label',title);button.setAttribute('aria-pressed',String(glassMode));});
   }
-  function toggleTheme() { const next=Theme.nextExplicit(effectiveTheme()); persist({theme:next}); applyThemeOnly({ animate:true, viewTransition:false }); }
+  function toggleTheme(origin) { const next=Theme.nextExplicit(effectiveTheme()); persist({theme:next}); applyThemeOnly({ animate:true, origin }); }
   function toggleVisualStyle() { const next=settings.glassMode===false; persist({glassMode:next}); applyThemeOnly({ animate:true, visualStyle:true }); syncVisualStyleButtons(); showToast(next?T('style_switched_glass','已切换到毛玻璃界面'):T('style_switched_original','已切换到原版 YouTube Desktop 风格')); }
   function openSettings() {
     try {
@@ -163,7 +167,7 @@
   function toggleSidebar() {
     if(currentContext&&currentContext.strategy==='decorate'){watch.toggleSidebar();return;}
     if(currentContext&&currentContext.strategy==='adapt'){nativeAdapter.toggleSidebar();return;}
-    shell.toggleSidebar();
+    if(shell.toggleSidebar())return;
     const side=shell.getRoot() && shell.getRoot().querySelector('[data-role="sidebar"]');
     persist({ sidebarCollapsed:Boolean(side && side.classList.contains('is-collapsed')) });
   }
@@ -198,8 +202,12 @@
   async function ensureWatchLaterState() {
     if (watchLaterStateLoaded) return true;
     if (watchLaterStatePromise) return watchLaterStatePromise;
-    watchLaterStatePromise=ApiClient.request('watchlater').then(payload=>{ingestWatchLater(payload);return watchLaterStateLoaded;}).finally(()=>{watchLaterStatePromise=null;});
-    return watchLaterStatePromise;
+    const seq=++watchLaterReadSeq,requestGeneration=generation;
+    const task=ApiClient.request('watchlater').then(payload=>{
+      if(seq===watchLaterReadSeq&&requestGeneration===generation&&payload&&payload.code===0)ingestWatchLater(payload);
+      return watchLaterStateLoaded;
+    }).finally(()=>{if(watchLaterStatePromise===task)watchLaterStatePromise=null;});
+    watchLaterStatePromise=task;return task;
   }
   function isWatchLater(item) {
     if(!item)return false;
@@ -228,7 +236,7 @@
     if(!result||result.code!==0){showToast(result&&result.message?String(result.message):T('watch_later_error','稍后再看操作失败'));return current;}
     const resolvedAid=Number(result.aid||aid||0); const resolvedBvid=String(result.bvid||bvid||'');
     if(next){if(resolvedBvid)watchLaterBvids.add(resolvedBvid);if(resolvedAid)watchLaterAids.add(resolvedAid);}
-    else {if(resolvedBvid)watchLaterBvids.delete(resolvedBvid);if(resolvedAid)watchLaterAids.delete(resolvedAid);watchLaterVideos=watchLaterVideos.filter(video=>String(video.bvid||'')!==resolvedBvid&&Number(video.aid||0)!==resolvedAid);}
+    else {if(resolvedBvid)watchLaterBvids.delete(resolvedBvid);if(resolvedAid)watchLaterAids.delete(resolvedAid);watchLaterVideos=watchLaterVideos.filter(video=>!((resolvedBvid&&String(video.bvid||'')===resolvedBvid)||(resolvedAid&&Number(video.aid||0)===resolvedAid)));}
     syncWatchLaterButtons(item,next);
     showToast(next?T('watch_later_success','已加入稍后再看'):T('watch_later_removed','已从稍后再看移除'));
     if(currentContext&&currentContext.route==='watchlater')rerenderCurrentReplace();
@@ -237,6 +245,7 @@
   function bindPreview(card,item,host) { if(settings.hoverPreview===false)return ()=>{}; return preview.bind(card,item,host); }
   function disconnectInfiniteObserver() { if (infiniteObserver) infiniteObserver.disconnect(); infiniteObserver = null; }
   function restoreNativePage() {
+    mountedHref='';themeReveal.cancel();
     generation += 1;
     if (routeController) routeController.abort();
     routeController = null;
@@ -280,7 +289,7 @@
     const next=!historyPaused;const result=await ApiClient.request('history-toggle',{paused:next,csrf});
     if(result&&result.code===0){historyPaused=next;rerenderCurrentReplace();showToast(next?T('history_paused','已暂停观看记录'):T('history_resumed','已开启观看记录'));}else showToast(result&&result.message||T('settings_failed','设置失败'));
   }
-  const callbacks={ toggleTheme,toggleVisualStyle,toggleSidebar,openSettings,bindPreview,beforeRender:()=>preview.destroy(),followSpace,requestSearchSuggestions,action:runAction,clearHistory,toggleHistoryPause,toggleWatchLater,isWatchLater,showWatchLaterQuick:()=>settings.watchLaterQuick!==false,showCardAuthor:()=>settings.showCardAuthor!==false,showCardMeta:()=>settings.showCardMeta!==false };
+  const callbacks={ canDecorateAuthor:()=>bridgeState.hydrated||!document.querySelector('#app'), loadMore, retryFeed, refreshCurrent, toggleTheme,toggleVisualStyle,toggleSidebar,openSettings,bindPreview,beforeRender:()=>{disconnectInfiniteObserver();preview.destroy();},afterReconcile:()=>preview.prune(),followSpace,requestSearchSuggestions,action:runAction,clearHistory,toggleHistoryPause,toggleWatchLater,isWatchLater,showWatchLaterQuick:()=>settings.watchLaterQuick!==false,showCardAuthor:()=>settings.showCardAuthor!==false,showCardMeta:()=>settings.showCardMeta!==false };
 
   function mergeUnique(existing, incoming, keyFn) {
     const out = Array.isArray(existing) ? existing.slice() : [];
@@ -299,52 +308,110 @@
     const match = location.pathname.match(/\/(BV[0-9A-Za-z]+)/);
     return match ? match[1] : '';
   }
+  function feedType(feed) {
+    if(feed==='home')return homeCategory()==='all'?'home':['live','anime'].includes(homeCategory())?'home-sections':'home-category';
+    return feed==='space'?'space-archives':feed;
+  }
+  function setFeedLoading(type) {
+    if(type==='home'){homeLoading=true;homeError='';}
+    else if(type==='home-category'){homeCategoryLoading=true;homeCategoryError='';}
+    else if(type==='home-sections'){homeSectionsLoading=true;homeSectionsError='';}
+    else if(type==='search'){searchLoading=true;searchError='';}
+    else if(type==='dynamic'){dynamicLoading=true;dynamicError='';}
+    else if(type==='watchlater'){watchLaterLoading=true;watchLaterError='';}
+    else if(type==='favorites'){favoriteLoading=true;favoriteError='';}
+    else if(type==='space-archives'){spaceLoading.set(currentContext.mid,true);spaceError.set(currentContext.mid,'');}
+  }
+  function refreshCurrent() {
+    if(!currentContext||currentContext.strategy!=='replace'||refreshPending.size)return;
+    const route=currentContext.route, requests=[];
+    if(route==='home'){
+      const category=homeCategory();
+      if(category==='all')requests.push(['home',{page:1}],['home-sections',{}]);
+      else if(['live','anime'].includes(category))requests.push(['home-sections',{}]);
+      else requests.push(['home-category',{category}]);
+    }else if(route.startsWith('search-'))requests.push(['search',{keyword:currentQuery(),category:searchCategoryForRoute(route),...searchFilters(),page:1}]);
+    else if(route==='dynamic')requests.push(['dynamic',{offset:''}]);
+    else if(route==='watchlater')requests.push(['watchlater',{}]);
+    else if(route==='favorites')requests.push(['favorites',{mid:currentContext.mid,mediaId:favoriteSelectedId,page:1}]);
+    else if(route==='space-home'||route==='space-upload')requests.push(['space-profile',{mid:currentContext.mid}],['space-archives',{mid:currentContext.mid,page:1}]);
+    if(!requests.length)return;
+    feedRevision+=1;failedRequests.clear();refreshStatus='refreshing';
+    disconnectInfiniteObserver();
+    for(const [type] of requests){refreshPending.add(type);setFeedLoading(type);}
+    renderReplace(currentContext,false);
+    for(const [type,params] of requests)requestApi(type,{...params,append:false,forceFresh:true});
+    requestApi('account',{forceFresh:true});requestApi('subscriptions',{forceFresh:true});
+  }
+  function retryFeed(feed) {
+    const type=feedType(feed),failed=failedRequests.get(type);
+    if(!failed||refreshPending.size||!currentContext||currentContext.strategy!=='replace')return;
+    failedRequests.delete(type);setFeedLoading(type);
+    renderReplace(currentContext,false);
+    requestApi(type,{...failed,forceFresh:true,nativeFirst:false});
+  }
+  function apiSucceeded(type,payload) {
+    if(type==='favorites')return Boolean(payload&&payload.folders&&payload.folders.code===0&&(
+      payload.resources&&payload.resources.code===0||!payload.mediaId&&Array.isArray(payload.folders.data&&payload.folders.data.list)&&!payload.folders.data.list.length));
+    if(type==='home-sections'){
+      const category=homeCategory(),keys=category==='live'?['live']:category==='anime'?['bangumi']:['followed','live','bangumi','popular'];
+      return keys.some(key=>payload&&payload[key]&&payload[key].code===0);
+    }
+    return Boolean(payload&&payload.code===0);
+  }
   function loadMoreHome() {
-    if (!currentContext || currentContext.route !== 'home' || homeLoading || !homeHasMore) return;
-    homeLoading = true; rerenderCurrentReplace();
+    if (!currentContext || currentContext.route !== 'home' || homeCategory()!=='all' || homeLoading || !homeHasMore) return;
+    homeLoading = true; shell.setLoading();
     requestApi('home',{ page:homePage + 1, append:true });
   }
   function searchCategoryForRoute(route) {
     return route==='search-user'?'user':route==='search-bangumi'?'bangumi':route==='search-media'?'media':route==='search-video'?'video':'all';
   }
+  function searchFilters(){
+    const params=new URLSearchParams(location.search),order=params.get('order'),duration=params.get('duration')||'0';
+    return {order:['totalrank','click','pubdate','dm','stow','scores'].includes(order)?order:'totalrank',duration:/^[0-4]$/.test(duration)?Number(duration):0};
+  }
   function loadMoreSearch() {
     if (!currentContext || !String(currentContext.route||'').startsWith('search-') || searchLoading || !searchHasMore) return;
     const category=searchCategoryForRoute(currentContext.route);
-    searchLoading=true; rerenderCurrentReplace(); requestApi('search',{keyword:currentQuery(),category,page:searchPage+1,append:true});
+    searchLoading=true; shell.setLoading(); requestApi('search',{keyword:currentQuery(),category,...searchFilters(),page:searchPage+1,append:true});
   }
   function loadMoreHistory() {
     if (!currentContext || currentContext.route !== 'history' || historyLoading || !historyHasMore) return;
-    historyLoading = true; rerenderCurrentReplace();
+    historyLoading = true; shell.setLoading();
     requestApi('history',{ ...historyCursor, append:true });
   }
   function loadMoreDynamic() {
     if (!currentContext || currentContext.route !== 'dynamic' || dynamicLoading || !dynamicHasMore) return;
-    dynamicLoading = true; rerenderCurrentReplace();
+    dynamicLoading = true; shell.setLoading();
     requestApi('dynamic',{ offset:dynamicOffset, append:true });
   }
   function loadMoreFavorites() {
     if (!currentContext || currentContext.route !== 'favorites' || favoriteLoading || !favoriteHasMore) return;
-    favoriteLoading=true; rerenderCurrentReplace(); requestApi('favorites',{mid:currentContext.mid,mediaId:favoriteSelectedId,page:favoritePage+1,append:true});
+    favoriteLoading=true; shell.setLoading(); requestApi('favorites',{mid:currentContext.mid,mediaId:favoriteSelectedId,page:favoritePage+1,append:true});
   }
   function loadMoreSpace() {
     if (!currentContext || currentContext.route !== 'space-upload') return;
     const mid=currentContext.mid; if(spaceLoading.get(mid)||spaceHasMore.get(mid)===false)return;
-    const page=Number(spacePage.get(mid)||1)+1; spaceLoading.set(mid,true); rerenderCurrentReplace(); requestApi('space-archives',{mid,page,append:true});
+    const page=Number(spacePage.get(mid)||1)+1; spaceLoading.set(mid,true); shell.setLoading(); requestApi('space-archives',{mid,page,append:true});
+  }
+  function loadMore(feed){
+    if(refreshPending.size||failedRequests.has(feedType(feed)))return;
+    if (feed === 'home') loadMoreHome();
+    else if (feed === 'search') loadMoreSearch();
+    else if (feed === 'history') loadMoreHistory();
+    else if (feed === 'dynamic') loadMoreDynamic();
+    else if (feed === 'favorites') loadMoreFavorites();
+    else if (feed === 'space') loadMoreSpace();
   }
   function setupInfiniteLoading() {
     disconnectInfiniteObserver();
     const root = shell.getRoot();
     const target = root && root.querySelector('[data-bt-feed]');
-    if (!target || typeof IntersectionObserver !== 'function') return;
+    if (!target || target.dataset.btManual==='true' || target.dataset.btLoading==='true' || target.dataset.btHasMore==='false' || typeof IntersectionObserver !== 'function') return;
     infiniteObserver = new IntersectionObserver((entries) => {
       if (!entries.some(entry => entry.isIntersecting)) return;
-      const feed = target.dataset.btFeed;
-      if (feed === 'home') loadMoreHome();
-      else if (feed === 'search') loadMoreSearch();
-      else if (feed === 'history') loadMoreHistory();
-      else if (feed === 'dynamic') loadMoreDynamic();
-      else if (feed === 'favorites') loadMoreFavorites();
-      else if (feed === 'space') loadMoreSpace();
+      loadMore(target.dataset.btFeed);
     }, { root:null, rootMargin:'900px 0px', threshold:0.01 });
     infiniteObserver.observe(target);
   }
@@ -352,29 +419,46 @@
 
   async function requestApi(type, params={}) {
     const requestGeneration = generation;
-    const requestHref = location.href;
+    const requestRevision = feedRevision;
+    const watchLaterSeq = type==='watchlater'?++watchLaterReadSeq:0;
+    const requestHref = Policy.navigationIdentity(location);
     const key = type === 'space-profile' ? `${type}:${params.mid || ''}`
       : type === 'space-archives' ? `${type}:${params.mid || ''}:${params.page || 1}`
       : type === 'home' ? `${type}:${params.page || 1}`
       : type === 'home-category' ? `${type}:${params.category || ''}`
-      : type === 'search' ? `${type}:${params.category || 'all'}:${params.keyword || ''}:${params.page || 1}`
+      : type === 'search' ? `${type}:${params.category || 'all'}:${params.keyword || ''}:${params.page || 1}:${params.order||'totalrank'}:${params.duration||0}`
       : type === 'history' ? `${type}:${params.max || 0}:${params.business || ''}:${params.viewAt || 0}`
       : type === 'dynamic' ? `${type}:${params.offset || 'first'}`
       : type === 'favorites' ? `${type}:${params.mid || ''}:${params.mediaId || ''}:${params.page || 1}`
       : type === 'watch-related' ? `${type}:${params.bvid || ''}`
       : type;
     const seq=(apiSeq.get(key)||0)+1; apiSeq.set(key,seq);
-    const payload=await ApiClient.request(type,params);
-    if (requestGeneration!==generation || requestHref!==location.href || apiSeq.get(key)!==seq) return;
+    let payload;
+    try { payload=await ApiClient.request(type,params); } catch { payload=null; }
+    if (requestGeneration!==generation || requestHref!==Policy.navigationIdentity(location) || apiSeq.get(key)!==seq || feedTypes.has(type)&&requestRevision!==feedRevision) return;
+    if(type==='watchlater'&&watchLaterSeq!==watchLaterReadSeq)return;
+    if(feedTypes.has(type)){
+      if(apiSucceeded(type,payload))failedRequests.delete(type);
+      else failedRequests.set(type,params);
+      if(refreshPending.delete(type)&&!refreshPending.size)refreshStatus=failedRequests.size?'failed':'updated';
+      else if(refreshStatus==='failed'&&!refreshPending.size&&!failedRequests.size)refreshStatus='updated';
+    }
 
     if (type==='account') {
       const account=Data.normalizeAccount(payload);
       if(account) bridgeState.user=account;
+      if(account&&account.isLogin&&currentContext&&currentContext.strategy==='replace'&&currentContext.route!=='watchlater'&&settings.watchLaterQuick!==false&&!watchLaterStateLoaded){
+        ensureWatchLaterState().then(loaded=>{
+          if(!loaded||requestGeneration!==generation||requestHref!==Policy.navigationIdentity(location))return;
+          for(const item of watchLaterVideos)syncWatchLaterButtons(item,true);
+        }).catch(()=>{});
+      }
     }
     else if (type==='home') {
       homeLoading=false;
-      if (payload==null) { homeHasMore=false; }
+      if (!payload||payload.code!==0) { homeError=T('feed_load_error','内容读取失败，请重试'); }
       else {
+        homeError='';
         const list=Data.normalizeHome(payload);
         if(params.append){const merged=mergeUnique(homeVideos,list,item=>item.bvid||item.href);homeVideos=merged.items;homeHasMore=list.length>0&&merged.added>0;if(homeHasMore)homePage=Math.max(homePage,Number(params.page||homePage));}
         else {homeVideos=list;homePage=Math.max(1,Number(params.page||1));homeHasMore=list.length>0;}
@@ -382,25 +466,32 @@
     }
     else if (type==='home-category') {
       homeCategoryLoading=false;
-      if (!payload || payload.code!==0) { homeCategoryVideos=[]; homeCategoryError=T('home_category_unavailable','该分类暂时无法读取'); }
+      if (!payload || payload.code!==0) { homeCategoryError=T('home_category_unavailable','该分类暂时无法读取'); }
       else { homeCategoryVideos=Data.normalizeHomeCategory(payload,params.category); homeCategoryError=''; }
     }
     else if (type==='home-sections') {
+      homeSectionsLoading=false;
+      homeSectionsError=apiSucceeded(type,payload)?'':T('feed_load_error','内容读取失败，请重试');
       const followed=Data.normalizeFollowedVideoShelf(payload&&payload.followed).slice(0,12);
       const live=Data.normalizeLiveShelf(payload&&payload.live).slice(0,12);
       const bangumi=Data.normalizeBangumiShelf(payload&&payload.bangumi).slice(0,12);
       const popular=Data.normalizePopularShelf(payload&&payload.popular).slice(0,12);
+      const previousShelves=homeShelves;
       homeShelves=[
         { key:'following', title:T('following_shelf','来自你的关注'), href:'https://t.bilibili.com/', items:followed },
         { key:'live', title:T('live_now','正在直播'), href:'https://live.bilibili.com/', items:live },
         { key:'bangumi', title:T('recent_anime','番剧 · 最近更新'), href:'https://www.bilibili.com/anime/', items:bangumi },
         { key:'popular', title:T('popular','热门'), href:'https://www.bilibili.com/v/popular/all/', items:popular },
-      ].filter(section=>section.items.length);
+      ].map(section=>{
+        const source=section.key==='following'?'followed':section.key;
+        return payload&&payload[source]&&payload[source].code===0?section:previousShelves.find(old=>old.key===section.key)||section;
+      }).filter(section=>section.items.length);
     }
     else if (type==='search') {
       searchLoading=false;
+      const previousResultCount=searchVideos.length+searchUsers.length;
       const category=String(params.category||'all');
-      if(!payload || payload.code!==0){searchHasMore=false;searchError=T('search_unavailable','搜索接口暂时不可用，已保留页面内结果作为兜底');}
+      if(!payload || payload.code!==0){searchError=T('feed_load_error','内容读取失败，请重试');}
       else {
         let results=[]; let users=[]; let rawForPaging=payload;
         if(category==='all'){
@@ -413,10 +504,11 @@
           if(results.length){const merged=mergeUnique(searchVideos,results,item=>item.bvid||item.href);searchVideos=merged.items;}
           if(users.length){const mergedUsers=mergeUnique(searchUsers,users,item=>item.mid||item.href);searchUsers=mergedUsers.items;}
         } else {searchVideos=results;searchUsers=users;}
-        searchError=''; searchPage=Math.max(searchPage,Number(params.page||1));
+        searchError=''; searchPage=params.append?Math.max(searchPage,Number(params.page||1)):Math.max(1,Number(params.page||1));
         const pageData=rawForPaging&&rawForPaging.data||payload.data||{}; const totalPages=Number(pageData.numPages||pageData.num_pages||pageData.num_pages_by_type&&pageData.num_pages_by_type.video||0);
         const resultCount=category==='user'?users.length:results.length;
-        searchHasMore=totalPages?searchPage<totalPages:resultCount>0;
+        const added=!params.append||searchVideos.length+searchUsers.length>previousResultCount;
+        searchHasMore=added&&searchPage<50&&(totalPages?searchPage<totalPages:resultCount>0);
       }
     }
     else if (type==='subscriptions') subscriptions=Data.normalizeSubscriptions(payload);
@@ -431,13 +523,17 @@
     }
     else if (type==='dynamic') {
       dynamicLoading=false;
-      if(!payload || payload.code!==0){dynamicHasMore=false;dynamicError=payload&&payload.code===-101?T('dynamic_login_error','请先登录 Bilibili 后再查看动态'):T('dynamic_load_error','动态读取失败');}
+      if(!payload || payload.code!==0){dynamicError=payload&&payload.code===-101?T('dynamic_login_error','请先登录 Bilibili 后再查看动态'):T('dynamic_load_error','动态读取失败');}
       else {
         const list=Data.normalizeDynamic(payload);const merged=params.append?mergeUnique(dynamicItems,list,item=>item.id||item.video&&item.video.bvid||`${item.author}|${item.time}|${item.text}`):{items:list,added:list.length};dynamicItems=merged.items;dynamicSubscriptions=Data.normalizeDynamicSubscriptions(dynamicItems);dynamicError='';
         dynamicOffset=String(payload.data&&payload.data.offset||'');dynamicHasMore=Boolean(payload.data&&payload.data.has_more)&&list.length>0&&merged.added>0&&Boolean(dynamicOffset);
       }
     }
-    else if (type==='watchlater') { watchLaterLoading=false; ingestWatchLater(payload); }
+    else if (type==='watchlater') {
+      watchLaterLoading=false;
+      watchLaterError=payload&&payload.code===0?'':payload&&payload.code===-101?T('watchlater_login_error','请先登录 Bilibili 后再查看稍后再看'):T('watchlater_load_error','稍后再看读取失败，可打开 B站原页面重试');
+      if(payload&&payload.code===0)ingestWatchLater(payload);
+    }
     else if (type==='history-status') {
       if(payload&&payload.code===0) historyPaused=Boolean(payload.data);
     }
@@ -447,14 +543,15 @@
       const raw=archivePayloads.get(mid); if(raw && !(archives.get(mid)||[]).length) archives.set(mid,Data.normalizeSpaceArchives(raw,mid,profile||{}));
     } else if (type==='space-archives') {
       const mid=String(params.mid||''); spaceLoading.set(mid,false);
-      if(!payload || payload.code!==0){spaceHasMore.set(mid,false);spaceError.set(mid,T('space_unavailable','投稿接口暂时不可用，已保留 B站页面数据兜底'));}
+      if(!payload || payload.code!==0){spaceError.set(mid,T('feed_load_error','内容读取失败，请重试'));}
       else {
         const list=Data.normalizeSpaceArchives(payload,mid,profiles.get(mid)||{}); const current=archives.get(mid)||[]; const merged=params.append?mergeUnique(current,list,item=>item.bvid||item.href):{items:list,added:list.length}; archives.set(mid,merged.items); spaceError.set(mid,'');
         const page=Math.max(1,Number(params.page||1)); spacePage.set(mid,page); const count=Number(payload.data&&payload.data.page&&payload.data.page.count||0); spaceHasMore.set(mid,count?page*30<count:list.length>=30&&merged.added>0);
       }
     } else if (type==='favorites') {
-      favoriteLoading=false; favoriteFolders=Data.normalizeFavoriteFolders(payload&&payload.folders); favoriteSelectedId=String(payload&&payload.mediaId||favoriteSelectedId||'');
-      if(!payload || !payload.resources || payload.resources.code!==0){favoriteHasMore=false;favoriteError=T('favorites_load_error','收藏夹读取失败');}
+      favoriteLoading=false;
+      if(payload&&payload.folders&&payload.folders.code===0){favoriteFolders=Data.normalizeFavoriteFolders(payload.folders);favoriteSelectedId=String(payload.mediaId||favoriteSelectedId||'');}
+      if(!apiSucceeded(type,payload)){favoriteError=T('favorites_load_error','收藏夹读取失败');}
       else { const list=Data.normalizeFavoriteResources(payload.resources); const merged=params.append?mergeUnique(favoriteVideos,list,item=>item.bvid||item.href):{items:list,added:list.length}; favoriteVideos=merged.items; favoritePage=Math.max(1,Number(payload.page||params.page||1)); favoriteHasMore=Boolean(payload.hasMore)&&merged.added>0; favoriteError=''; }
     }
     if (!currentContext) return;
@@ -465,7 +562,7 @@
     }
     if (currentContext.strategy==='replace') {
       if (type==='subscriptions') shell.updateChrome(chromeData());
-      else if (type!=='account') rerenderCurrentReplace();
+      else if (type!=='account') rerenderCurrentReplace(params.append===true);
     }
     else if (currentContext.strategy==='adapt' && type==='subscriptions') nativeAdapter.updateChrome(chromeData(),callbacks);
   }
@@ -497,38 +594,46 @@
   function homeRenderItems(category) {
     if (category === 'live' || category === 'anime') return [];
     if (category !== 'all' && homeCategoryVideos.length) return homeCategoryVideos;
-    const source = homeVideos.length ? homeVideos : Extract.extractSearchCards(document);
+    const source = homeVideos.length ? homeVideos : homeError ? Extract.extractSearchCards(document) : [];
     return source.filter(item => homeCategoryMatches(item, category));
   }
-  function renderReplace(context, requestData=true) {
-    const base=chromeData();
+  function renderReplace(context, requestData=true, append=false) {
+    const base={...chromeData(),append,refreshing:refreshPending.size>0,refreshStatus};
     if(context.route==='home') {
+      if(requestData)homeLoading=true;
       const category=homeCategory();
       const categoryFromApi=!['all','live','anime'].includes(category);
-      if(requestData&&categoryFromApi)homeCategoryLoading=true;
-      const homeData={...base,category,videos:homeRenderItems(category),shelves:visibleHomeShelves(),loading:categoryFromApi?homeCategoryLoading:homeLoading,hasMore:categoryFromApi?false:homeHasMore,error:homeCategoryError};
+      const shelfCategory=['live','anime'].includes(category);
+      if(requestData){
+        homeError='';homeSectionsError='';homeSectionsLoading=true;
+        if(homeCategoryKey!==category){homeCategoryVideos=[];homeCategoryError='';homeCategoryKey=category;}
+        if(categoryFromApi)homeCategoryLoading=true;
+      }
+      const homeData={...base,category,videos:homeRenderItems(category),shelves:visibleHomeShelves(),loading:categoryFromApi?homeCategoryLoading:shelfCategory?homeSectionsLoading:homeLoading,hasMore:category==='all'?homeHasMore:false,error:categoryFromApi?homeCategoryError:shelfCategory?homeSectionsError:homeError};
       if(category!=='all')homeData.shelves=visibleHomeShelves(category);
       shell.render('home',homeData);
       armInfiniteLoading();
-      if(requestData){homePage=1;homeHasMore=true;homeLoading=true;requestApi('home',{page:1,append:false});requestApi('home-sections');requestApi('subscriptions');if(categoryFromApi)requestApi('home-category',{category});} return;
+      if(requestData){homePage=1;homeHasMore=true;homeLoading=true;requestApi('home',{page:1,append:false,nativeFirst:true});requestApi('home-sections');requestApi('subscriptions');if(categoryFromApi)requestApi('home-category',{category});} return;
     }
     if(String(context.route||'').startsWith('search-')) {
-      const query=currentQuery(); const category=searchCategoryForRoute(context.route);
-      if(requestData&&(searchQueryKey!==query||searchCategoryKey!==category)){searchQueryKey=query;searchCategoryKey=category;searchVideos=[];searchUsers=[];searchPage=1;searchHasMore=true;searchError='';}
-      const fallback=!searchVideos.length&&(category==='all'||category==='video')?Extract.extractSearchCards(document):[]; const results=searchVideos.length?searchVideos:fallback;
-      shell.render(context.route,{...base,query,category,results,users:searchUsers,videos:results,loading:searchLoading,hasMore:searchHasMore,error:searchError}); armInfiniteLoading();
-      if(requestData){searchLoading=true;requestApi('search',{keyword:query,category,page:1,append:false});if(category==='all'||category==='video')scheduleDomRefresh(context,[700]);requestApi('subscriptions');} return;
+      const query=currentQuery(); const category=searchCategoryForRoute(context.route);const filters=searchFilters();const queryKey=JSON.stringify([query,filters]);
+      if(requestData&&(searchQueryKey!==queryKey||searchCategoryKey!==category)){searchQueryKey=queryKey;searchCategoryKey=category;searchVideos=[];searchUsers=[];searchPage=1;searchHasMore=true;searchError='';}
+      if(requestData)searchLoading=true;
+      const fallback=searchError&&!searchVideos.length&&(category==='all'||category==='video')?Extract.extractSearchCards(document):[]; const results=searchVideos.length?searchVideos:fallback;
+      shell.render(context.route,{...base,query,category,filters,results,users:searchUsers,videos:results,loading:searchLoading,hasMore:searchHasMore,error:searchError}); armInfiniteLoading();
+      if(requestData){searchLoading=true;requestApi('search',{keyword:query,category,...filters,page:1,append:false,nativeFirst:true});if(category==='all'||category==='video')scheduleDomRefresh(context,[700]);requestApi('subscriptions');} return;
     }
     if(context.route==='dynamic') {
       const dynamicMode = new URLSearchParams(location.search).get('bilitube_dynamic') || 'all';
+      if(requestData){dynamicLoading=true;dynamicError='';}
       shell.render('dynamic',{...base,items:dynamicItems,mode:dynamicMode,loading:dynamicLoading,hasMore:dynamicHasMore,error:dynamicError});
       armInfiniteLoading();
-      if(requestData){dynamicOffset='';dynamicHasMore=true;dynamicError='';dynamicLoading=true;dynamicSubscriptions=[];requestApi('dynamic',{offset:'',append:false});requestApi('subscriptions');} return;
+      if(requestData){dynamicOffset='';dynamicHasMore=true;dynamicError='';dynamicLoading=true;dynamicSubscriptions=[];requestApi('dynamic',{offset:'',append:false,nativeFirst:true});requestApi('subscriptions');} return;
     }
     if(context.route==='watchlater') {
-      if(requestData)watchLaterLoading=true;
-      shell.render('watchlater',{...base,videos:watchLaterVideos,loading:watchLaterLoading});
-      if(requestData){requestApi('watchlater');requestApi('subscriptions');} return;
+      if(requestData){watchLaterLoading=true;watchLaterError='';}
+      shell.render('watchlater',{...base,videos:watchLaterVideos,loading:watchLaterLoading,error:watchLaterError});
+      if(requestData){requestApi('watchlater',{nativeFirst:true});requestApi('subscriptions');} return;
     }
     if(context.route==='favorites') {
       if(requestData){favoriteSelectedId=new URLSearchParams(location.search).get('fid')||'';favoriteFolders=[];favoriteVideos=[];favoritePage=1;favoriteHasMore=true;favoriteError='';favoriteLoading=true;}
@@ -537,9 +642,9 @@
       if(requestData){favoriteLoading=true;favoritePage=1;favoriteHasMore=true;requestApi('favorites',{mid:context.mid,mediaId:favoriteSelectedId,page:1,append:false});requestApi('subscriptions');} return;
     }
     if(context.route==='space-home'||context.route==='space-upload') {
-      const mid=context.mid; const profile=profiles.get(mid)||null; const apiVideos=archives.get(mid)||[]; const videos=apiVideos.length?apiVideos:Extract.extractSearchCards(document);
+      const mid=context.mid;if(requestData)spaceLoading.set(mid,true); const profile=profiles.get(mid)||null; const apiVideos=archives.get(mid)||[]; const videos=apiVideos.length?apiVideos:spaceError.get(mid)?Extract.extractSearchCards(document):[];
       shell.render(context.route,{...base,mid,profile,videos,loading:Boolean(spaceLoading.get(mid)),hasMore:spaceHasMore.get(mid)!==false,error:spaceError.get(mid)||''}); if(context.route==='space-upload')armInfiniteLoading();
-      if(requestData){spacePage.set(mid,1);spaceHasMore.set(mid,true);spaceLoading.set(mid,true);spaceError.set(mid,'');requestApi('space-profile',{mid});requestApi('space-archives',{mid,page:1,append:false});requestApi('subscriptions');scheduleDomRefresh(context,[900]);}
+      if(requestData){spacePage.set(mid,1);spaceHasMore.set(mid,true);spaceLoading.set(mid,true);spaceError.set(mid,'');requestApi('space-profile',{mid});requestApi('space-archives',{mid,page:1,append:false,nativeFirst:true});requestApi('subscriptions');scheduleDomRefresh(context,[900]);}
     }
   }
 
@@ -549,23 +654,38 @@
       if(myGeneration!==generation || routeController && routeController.signal.aborted)return;
       const now=Policy.resolve(location); if(now.route!==context.route||now.strategy!=='replace')return;
       if(context.route==='search-video'||context.route==='search-all') {
-        if(!searchVideos.length){const videos=Extract.extractSearchCards(document); if(videos.length)shell.render(context.route,{...chromeData(),query:currentQuery(),category:searchCategoryForRoute(context.route),results:videos,users:searchUsers,videos,loading:searchLoading,hasMore:searchHasMore,error:searchError});}
+        if(searchError&&!searchVideos.length){const videos=Extract.extractSearchCards(document); if(videos.length)shell.render(context.route,{...chromeData(),query:currentQuery(),category:searchCategoryForRoute(context.route),results:videos,users:searchUsers,videos,loading:searchLoading,hasMore:searchHasMore,error:searchError});}
       } else if(context.route==='space-home'||context.route==='space-upload') {
-        const existing=archives.get(context.mid)||[]; const fallback=existing.length?[]:Extract.extractSearchCards(document);
-        shell.render(context.route,{...chromeData(),mid:context.mid,profile:profiles.get(context.mid)||null,videos:existing.length?existing:fallback,loading:Boolean(spaceLoading.get(context.mid)),hasMore:spaceHasMore.get(context.mid)!==false,error:spaceError.get(context.mid)||''});
+        if((archives.get(context.mid)||[]).length||!spaceError.get(context.mid))return;
+        const fallback=Extract.extractSearchCards(document);if(!fallback.length)return;
+        shell.render(context.route,{...chromeData(),mid:context.mid,profile:profiles.get(context.mid)||null,videos:fallback,loading:Boolean(spaceLoading.get(context.mid)),hasMore:spaceHasMore.get(context.mid)!==false,error:spaceError.get(context.mid)||''});
       }
     },delay);
   }
   function mount(reason='route') {
     if(!document.body)return;
-    generation+=1; const myGeneration=generation;
+    const nextContext=Policy.resolve(location);
+    if(reason==='bridge-navigation'&&mountedHref===Policy.navigationIdentity(location)){
+      if(currentContext&&currentContext.strategy==='decorate'){currentContext=nextContext;watch.updateContext(watchContext());watch.updateChrome(chromeData());}
+      else if(currentContext&&currentContext.strategy==='replace')shell.updateChrome(chromeData());
+      return;
+    }
+    // Bilibili swaps video routes inside its mounted Vue app. Keep the native
+    // player decoration and its DOM observers alive while that patch runs;
+    // tearing them down here can leave the next player outside our layout.
+    if(reason==='bridge-navigation'&&currentContext&&currentContext.route==='watch'&&nextContext.route==='watch'){
+      mountedHref=Policy.navigationIdentity(location);currentContext=nextContext;
+      watch.updateContext(watchContext());watch.updateChrome(chromeData());return;
+    }
+    mountedHref=Policy.navigationIdentity(location);
+    generation+=1; apiSeq.clear(); refreshPending.clear();failedRequests.clear();refreshStatus=''; const myGeneration=generation;
     if(routeController)routeController.abort(); routeController=new AbortController();
-    currentContext=Policy.resolve(location);
+    currentContext=nextContext;
     try {
       if(!settings.enabled||currentContext.strategy==='passthrough'){restoreNativePage();return;}
       const theme=effectiveTheme();
       if(currentContext.strategy==='adapt') {
-        preview.destroy();watch.destroy();guard.restore();shell.destroy();clearPreflight();
+        preview.destroy();watch.destroy();guard.restore();disconnectInfiniteObserver();shell.destroy();clearPreflight();
         nativeAdapter.mount(chromeData(),callbacks,theme,currentContext);post('state');requestApi('account');requestApi('subscriptions');return;
       }
       nativeAdapter.restore();
@@ -581,13 +701,14 @@
       post('state');
     } catch(error) { restoreNativePage(); console.warn('[BiliTube] Core mount failed; restored native Bilibili.',error); }
   }
-  function rerenderCurrentReplace() {
+  function rerenderCurrentReplace(append=false) {
     if(!currentContext||currentContext.strategy!=='replace'||!shell.getRoot())return;
-    if (rerenderTimer) return;
+    if (rerenderTimer) { rerenderAppend=rerenderAppend&&append;return; }
+    rerenderAppend=append;
     rerenderTimer=setTimeout(()=>{
       rerenderTimer=null;
       if(!currentContext||currentContext.strategy!=='replace'||!shell.getRoot())return;
-      shell.updateChrome(chromeData());renderReplace(currentContext,false);
+      shell.updateChrome(chromeData());renderReplace(currentContext,false,rerenderAppend);
     },60);
   }
   function onBridgeMessage(event) {
@@ -595,12 +716,13 @@
     const {type,payload}=event.data;
     if(type==='write-result'&&payload&&payload.id){const done=bridgeWritePending.get(String(payload.id));if(done)done(payload.result);return;}
     if(type==='navigation') {
+      if(payload&&typeof payload.hydrated==='boolean')bridgeState.hydrated=payload.hydrated;
       if(payload&&payload.user)bridgeState.user=payload.user;
       if(payload&&payload.video)bridgeState.video=payload.video;
       queueMicrotask(()=>mount('bridge-navigation'));return;
     }
     if(type==='state') {
-      if(payload)bridgeState={user:payload.user||bridgeState.user,video:payload.video||null};
+      if(payload)bridgeState={...bridgeState,user:payload.user||bridgeState.user,video:payload.video||null,hydrated:typeof payload.hydrated==='boolean'?payload.hydrated:bridgeState.hydrated};
       if(currentContext&&currentContext.strategy==='decorate'){watch.updateContext(watchContext());watch.updateChrome(chromeData());}
       else if(currentContext&&currentContext.strategy==='replace')shell.updateChrome(chromeData());
       else if(currentContext&&currentContext.strategy==='adapt')nativeAdapter.updateChrome(chromeData(),callbacks);
@@ -616,9 +738,36 @@
   }
   function boot() {
     addEventListener('message',onBridgeMessage);
+    // Offer a refresh after a long absence without replacing the user's place
+    // in a feed or issuing background polling requests.
+    if(document.addEventListener)document.addEventListener('visibilitychange',()=>{
+      if(document.hidden){hiddenAt=Date.now();return;}
+      const stale=hiddenAt&&Date.now()-hiddenAt>=60000;hiddenAt=0;
+      if(stale&&settings.enabled&&currentContext&&currentContext.strategy==='replace'&&!refreshPending.size){refreshStatus='stale';rerenderCurrentReplace();}
+    });
     const systemThemeListener=()=>{if(settings.theme==='system')applyThemeOnly();};
     if(mediaQuery.addEventListener)mediaQuery.addEventListener('change',systemThemeListener);else if(mediaQuery.addListener)mediaQuery.addListener(systemThemeListener);
-    try{chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='local'||!changes.bilitubeCoreSettings)return;const next={...defaults,...(changes.bilitubeCoreSettings.newValue||{})};const enabledChanged=next.enabled!==settings.enabled;settings=next;applyThemeOnly();if(enabledChanged)mount('settings-change');else if(currentContext&&currentContext.strategy==='replace'){if(shell.getRoot()){shell.setCollapsed(settings.sidebarCollapsed);shell.updateChrome(chromeData());renderReplace(currentContext,false);}}else if(currentContext&&currentContext.strategy==='decorate')watch.updateChrome(chromeData());else if(currentContext&&currentContext.strategy==='adapt')nativeAdapter.updateChrome(chromeData(),callbacks);});}catch{}
+    try{chrome.storage.onChanged.addListener((changes,area)=>{
+      if(area!=='local'||!changes.bilitubeCoreSettings)return;
+      const next={...defaults,...(changes.bilitubeCoreSettings.newValue||{})};
+      const signature=JSON.stringify(next);if(pendingSettingWrites.has(signature)){pendingSettingWrites.delete(signature);return;}
+      const changed=Object.keys(next).filter(key=>next[key]!==settings[key]);
+      if(!changed.length)return;
+      settings=next;applyThemeOnly();
+      if(changed.includes('enabled')){mount('settings-change');return;}
+      if(changed.includes('hoverPreview')){
+        if(settings.hoverPreview===false)preview.destroy();
+        else {const root=shell.getRoot();if(root)for(const card of root.querySelectorAll('article'))if(card.__btCardItem&&card.__btPreviewHost)bindPreview(card,card.__btCardItem,card.__btPreviewHost);}
+      }
+      if(currentContext&&currentContext.strategy==='replace'&&shell.getRoot()){
+        if(changed.includes('sidebarCollapsed'))shell.setCollapsed(settings.sidebarCollapsed);
+        if(changed.includes('showSubscriptions'))shell.updateChrome(chromeData());
+        const contentKeys=['showCardAuthor','showCardMeta','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf'];
+        if(changed.some(key=>contentKeys.includes(key)))renderReplace(currentContext,false);
+        if(changed.includes('watchLaterQuick'))window.BiliTubeUI.updateQuickControls(shell.getRoot(),callbacks);
+      }
+    });}catch{}
+
     loadSettings(()=>{applyThemeOnly();mount('boot');setTimeout(()=>post('state'),450);setTimeout(()=>post('state'),1400);});
   }
   if(document.body)boot();else addEventListener('DOMContentLoaded',boot,{once:true});

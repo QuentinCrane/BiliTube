@@ -14,12 +14,12 @@ test('document-start preflight marks ordinary video pages before Watch runtime m
 });
 
 test('Watch preflight reserves the final two-column geometry before native content paints', () => {
-  const css = read('src/styles/preflight.css');
-  assert.match(css, /html\.bilitube-watch-preflight\s+body\{[^}]*padding-top\s*:\s*var\(--bt-topbar-h,\s*56px\)!important/s);
-  assert.match(css, /html\.bilitube-watch-preflight\s+:is\([^)]*\.video-container-v1[^)]*\)\{[^}]*display\s*:\s*grid!important[^}]*grid-template-columns\s*:\s*minmax\(0,1fr\)\s+minmax\(320px,var\(--bt-watch-related-w,\s*402px\)\)/s);
-  assert.match(css, /html\.bilitube-watch-preflight\s+:is\([^)]*\.left-container[^)]*\)\{[^}]*display\s*:\s*flex!important[^}]*flex-direction\s*:\s*column!important/s);
-  assert.match(css, /html\.bilitube-watch-preflight\s+:is\([^)]*#playerWrap[^)]*\)\{[^}]*order\s*:\s*0!important[^}]*aspect-ratio\s*:\s*16\s*\/\s*9!important/s);
-  assert.match(css, /html\.bilitube-watch-preflight\s+:is\([^)]*\.video-info-container[^)]*#viewbox_report[^)]*\)\{[^}]*order\s*:\s*1!important/s);
+  const css = read('src/styles/core.css');
+  assert.match(css, /html\.bilitube-watch-preflight\s+body,\s*html\.bt-watch-decorated\s+body\{[^}]*padding-top:var\(--bt-topbar-h\)!important/s);
+  assert.match(css, /html\.bilitube-watch-preflight\s+:where\([^)]*\.video-container-v1[^)]*\),\s*\.bt-watch-native-layout\{[^}]*display:grid!important[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(320px,var\(--bt-watch-related-w\)\)/s);
+  assert.match(css, /html\.bilitube-watch-preflight\s+:where\([^)]*\.left-container[^)]*\),\s*\.bt-native-watch-main\{[^}]*display:flex!important[^}]*flex-direction:column!important/s);
+  assert.match(css, /html\.bilitube-watch-preflight\s+:where\([^)]*#playerWrap[^)]*\),\s*\.bt-native-watch-player-host\{[^}]*order:0!important[^}]*aspect-ratio:16 \/ 9!important/s);
+  assert.match(css, /html\.bilitube-watch-preflight\s+:where\([^)]*#viewbox_report[^)]*\),\s*\.bt-native-watch-info\{[^}]*order:1!important/s);
 });
 
 test('Watch runtime swaps preflight for ready without a second page-geometry phase', () => {

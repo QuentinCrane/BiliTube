@@ -37,7 +37,7 @@ test('Watch creates a stable YouTube-like author row without moving native Bilib
 
 test('Watch right column hides native author and danmaku modules but keeps recommendations native and clickable', () => {
   const css = read('src/styles/core.css');
-  assert.match(css, /\.bt-native-watch-aside\s+\.bt-native-watch-up\{[^}]*display\s*:\s*none!important/s);
+  assert.match(css, /html\.bt-watch-author-ready\s+\.bt-native-watch-aside\s+:is\([^)]*\.bt-native-watch-up[^)]*\)\{[^}]*display\s*:\s*none!important/s);
   assert.match(css, /\.bt-native-watch-aside\s+:is\([^)]*(?:danmukuBox|danmaku)[^)]*\)\{[^}]*display\s*:\s*none!important/s);
   assert.match(css, /\.bt-native-watch-related\{[^}]*width\s*:\s*100%!important/s);
   assert.doesNotMatch(css, /\.bt-native-watch-related\{[^}]*position\s*:\s*(?:fixed|absolute)/s);

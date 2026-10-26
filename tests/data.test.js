@@ -80,6 +80,8 @@ test('normalizes dynamic feed video and text cards without DOM selectors', () =>
   ] } });
   assert.equal(list.length, 2);
   assert.equal(list[0].video.href, 'https://www.bilibili.com/video/BV1DYN');
+  assert.equal(list[0].video.dynamicHref, 'https://t.bilibili.com/1');
+  assert.equal(list[1].href, 'https://t.bilibili.com/2');
   assert.equal(list[0].authorHref, 'https://space.bilibili.com/7');
   assert.equal(list[1].images[0].startsWith('https://'), true);
 });

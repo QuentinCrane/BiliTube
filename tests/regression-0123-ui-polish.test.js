@@ -44,14 +44,16 @@ test('top bar uses Dynamic instead of Upload', () => {
   assert.doesNotMatch(ui, /member\.bilibili\.com\/platform\/upload\/video\/frame['"],['"]投稿['"]/);
 });
 
-test('theme toggle has a real transition path and no global transition kill-switch', () => {
+test('theme transition stays scoped and composites snapshot opacity', () => {
   const app = read('src/core/app.js');
   const css = read('src/styles/core.css');
   assert.match(app, /startViewTransition/);
   assert.match(app, /bt-theme-animating/);
   assert.doesNotMatch(css, /html\.bt-theme-switching[^\n]*transition\s*:\s*none!important/);
   assert.match(css, /::view-transition-(?:old|new)\(root\)/);
-  assert.match(css, /html\.bt-theme-animating\s+:is\(/);
+  assert.match(css, /html\.bt-theme-reveal::view-transition-old\(root\)\{[^}]*will-change:opacity/);
+  assert.doesNotMatch(css, /will-change:clip-path/);
+  assert.match(app, /settings\.motionMode !== 'none'/);
 });
 
 test('Watch spacing keeps YouTube-like tight column gap with safer outer gutters', () => {

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "zh_CN",
   "name": "__MSG_ext_name__",
-  "version": "0.12.4",
+  "version": "0.12.5",
   "description": "__MSG_ext_description__",
   "permissions": [
     "storage"
@@ -55,6 +55,7 @@
         "src/core/extract.js",
         "src/core/preview.js",
         "src/core/ui.js",
+        "src/core/reconcile.js",
         "src/core/shell.js",
         "src/core/native-adapter.js",
         "src/core/actions.js",

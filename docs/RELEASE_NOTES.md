@@ -1,11 +1,11 @@
-# BiliTube Release Notes Draft
+# BiliTube 0.12.5 Release Notes Draft
 
 这是当前 GitHub Release 可以直接参考的发布文案草稿。正式发布前，需要把“待实机验证”项目替换成真实浏览器证据，不要仅凭 Node 测试宣称生产页面完全通过。
 
 ## Current source
 
 - Repository: `https://github.com/QuentinCrane/BiliTube`
-- Manifest version: `0.12.4`
+- Manifest version: `0.12.5`
 - Extension type: Chromium / Edge Manifest V3
 - License: MIT
 - Attribution: `QuentinCrane`
@@ -19,19 +19,22 @@
 - Native-first Watch：Bilibili 原生播放器、toolbar、简介、评论和相关推荐继续保留。
 - Hover Preview、seek rail、稍后再看快捷按钮、深浅色主题和可配置动效。
 
-## Fixes in the current maintenance change
+## Fixes in v0.12.5
 
-向下滚动触发下一页后，已有缩略图不再因为整个 feed 重绘而重新进入模糊加载状态。请求竞态、Preview observer 和旧路由响应也增加了清理和丢弃保护。
+- 播放页内点击推荐视频后，跨视频路由复用 Watch 装饰器，并跟踪 SPA 根节点替换，避免播放器失去布局标记。
+- 视频页首屏预布局等待原站初始化；作者信息使用占位接续，减少播放器、标题和推荐列的布局跳动。
+- 首页、搜索、动态、收藏夹、稍后再看和频道页面增加刷新与失败重试，并保护现有内容免受旧响应覆盖。
+- 补齐搜索筛选、空状态和分页行为；优化深浅主题切换、窄窗口抽屉和卡片布局。
 
 ## Validation
 
 ```text
-node --test tests/*.test.js       205 passed
-node scripts/verify.mjs           passed
+node --test tests/*.test.js       249 passed
+node scripts/verify.mjs           passed (27 manifest resources, 22 JavaScript files)
 git diff --check                  passed
 ```
 
-自动验证覆盖源码契约和生命周期。当前 Release 文案不能替代登录态 Edge/Chrome + 当前 Bilibili 页面上的最终人工验收。
+临时未登录 Edge 配置验证了一次相关推荐同页切换：URL 保持同一文档，播放器仍在标题上方，视频节点持续播放。自动验证和这次公开页面探针不能替代登录态 Edge/Chrome 的全面人工验收。
 
 ## Known limitations
 

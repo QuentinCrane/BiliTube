@@ -41,6 +41,8 @@
     let watchData = {};
     let authorRow = null;
     let authorSignature = '';
+    let authorRetryTimer = null, authorRetries = 0;
+    let authorFallbackTimer = null, authorFallback = false;
     const marked = new Set();
 
     function first(selectors, root = doc) {
@@ -76,6 +78,10 @@
       return added;
     }
 
+    function pruneDetachedMarkers() {
+      for (const node of marked) if (!node || node.isConnected === false) marked.delete(node);
+    }
+
     function clearMarkers() {
       for (const node of marked) {
         if (!node || !node.classList) continue;
@@ -85,6 +91,7 @@
     }
 
     function discoverRegions() {
+      pruneDetachedMarkers();
       let found = 0;
       for (const def of REGION_DEFS) {
         if (def.marker === 'bt-native-watch-related') {
@@ -112,6 +119,7 @@
 
     function discoverAddedRegions(node) {
       if (!node || node.nodeType !== 1) return;
+      pruneDetachedMarkers();
       const player = first(['#playerWrap','#bilibili-player-wrap','#bilibili-player','#bilibiliPlayer','.bpx-player-container']);
       if (player && player !== node && player.contains(node)) return;
       const activeScreens = playerScreens();
@@ -126,7 +134,10 @@
         if (!observedMarkers.has(def.marker)) continue;
         for (const selector of def.selectors) {
           try {
-            if (node.matches && node.matches(selector)) coreChanged = CORE_MARKERS.has(def.marker) && mark(node, def.marker) || coreChanged;
+            if (node.matches && node.matches(selector)) {
+              const added = mark(node, def.marker);
+              if (CORE_MARKERS.has(def.marker) && added) coreChanged = true;
+            }
             if (node.querySelectorAll) {
               for (const child of node.querySelectorAll(selector)) {
                 const added = mark(child, def.marker);
@@ -192,6 +203,21 @@
     }
 
     function ensureAuthorRow() {
+      // Keep the native-author layout once the startup fallback is visible;
+      // late hydration must not move an already-visible recommendation list.
+      // The narrow layout has no visible aside to preserve; it may still fill
+      // the reserved author slot when hydration eventually completes.
+      if (authorFallback && (!doc.defaultView || !doc.defaultView.matchMedia || !doc.defaultView.matchMedia('(max-width:900px)').matches)) return false;
+      // The SSR page can start its player before Vue hydrates #app. Adding a
+      // child to its columns at that point invalidates hydration and causes
+      // Bilibili to disconnect and recreate the already-loading player.
+      const app=doc.querySelector('#app');
+      const hydrated=callbacks.canDecorateAuthor?callbacks.canDecorateAuthor():!app;
+      if(!hydrated){
+        if(!authorRetryTimer&&authorRetries<MAX_RETRIES){authorRetries++;authorRetryTimer=setTimeout(()=>{authorRetryTimer=null;ensureAuthorRow();},200);}
+        return false;
+      }
+      if(authorRetryTimer){clearTimeout(authorRetryTimer);authorRetryTimer=null;}
       const main = first(['.bt-native-watch-main','.video-container-v1 > .left-container','#mirror-vdcon.video-container-v1 > .left-container','.video-page-container > .left-container']);
       const creator = watchData && watchData.creator || {};
       if (!main || !creator.name) return false;
@@ -239,6 +265,9 @@
         authorRow.append(follow);
       }
       authorSignature = signature;
+      doc.documentElement.classList.add('bt-watch-author-ready');
+      if (authorFallback) { authorFallback = false; doc.documentElement.classList.remove('bt-watch-author-fallback'); }
+      if (authorFallbackTimer) { clearTimeout(authorFallbackTimer); authorFallbackTimer = null; }
       ensureWatchLaterButton();
       return true;
     }
@@ -294,16 +323,32 @@
         const layout = ready.layout;
         regionObserver = new MutationObserver((mutations) => {
           for (const mutation of mutations) {
-            for (const node of mutation.addedNodes || []) discoverAddedRegions(node);
+            for (const node of mutation.addedNodes || []) {
+              if (node && node.nodeType === 1) {
+                const app = node.matches && node.matches('#app') ? node : node.querySelector && node.querySelector('#app');
+                if (app && regionObserver) regionObserver.observe(app, { childList: true, subtree: true });
+              }
+              discoverAddedRegions(node);
+            }
           }
         });
-        regionObserver.observe(ready.layout.parentElement || layout, { childList: true, subtree: true });
+        const app = doc.querySelector('#app');
+        const appParent = app && app.parentElement;
+        if (app) {
+          if (doc.body) regionObserver.observe(doc.body, { childList: true });
+          if (appParent && appParent !== doc.body) regionObserver.observe(appParent, { childList: true });
+          regionObserver.observe(app, { childList: true, subtree: true });
+        } else {
+          regionObserver.observe(doc.body || ready.layout.parentElement || layout, { childList: true, subtree: true });
+        }
         classObserver = new MutationObserver((mutations) => {
           for (const mutation of mutations) {
             if (mutation.type === 'attributes') discoverAddedRegions(mutation.target);
           }
         });
-        for (const node of [ready.layout, ready.main, ready.aside, ready.info]) {
+        // Related-video navigation reuses this host and Vue rewrites its class.
+        // Restore its marker before paint so flex order cannot send it below comments.
+        for (const node of [ready.layout, ready.main, ready.aside, ready.player, ready.info]) {
           if (node) classObserver.observe(node, { attributes: true, attributeFilter: ['class'] });
         }
         modeObserver = new MutationObserver(schedulePlayerModeSync);
@@ -364,6 +409,13 @@
       const ready = coreRegionsReady();
       if (!player || !player.isConnected || !ready) return false;
       ensureLayer(theme);
+      if (!authorFallbackTimer) authorFallbackTimer = setTimeout(() => {
+        authorFallbackTimer = null;
+        if (authorRow && authorRow.isConnected) return;
+        authorFallback = true;
+        if (authorRetryTimer) { clearTimeout(authorRetryTimer); authorRetryTimer = null; }
+        doc.documentElement.classList.add('bt-watch-author-fallback');
+      }, 6000);
       discoverRegions();
       syncPlayerMode();
       doc.documentElement.classList.add('bt-watch-decorated','bt-watch-ready');
@@ -398,6 +450,10 @@
     function revealNativeMeta() { clearMarkers(); discoverRegions(); }
 
     function destroy(clearCallbacks = true) {
+      if (authorFallbackTimer) clearTimeout(authorFallbackTimer);
+      authorFallbackTimer = null; authorFallback = false;
+      if(authorRetryTimer)clearTimeout(authorRetryTimer);authorRetryTimer=null;authorRetries=0;
+      doc.documentElement.classList.remove('bt-watch-author-ready','bt-watch-author-fallback');
       if (retryTimer) clearTimeout(retryTimer);
       retryTimer = null;
       retryCount = 0;
@@ -411,6 +467,7 @@
       drawer = null;
       for (const cls of ROOT_CLASSES) doc.documentElement.classList.remove(cls);
       if (clearCallbacks) {
+        doc.documentElement.classList.remove('bilitube-watch-preflight');
         callbacks = {};
         chromeData = {};
         watchData = {};
