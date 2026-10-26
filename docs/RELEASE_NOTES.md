@@ -1,6 +1,6 @@
 # BiliTube 0.12.5 Release Notes Draft
 
-这是当前 GitHub Release 可以直接参考的发布文案草稿。正式发布前，需要把“待实机验证”项目替换成真实浏览器证据，不要仅凭 Node 测试宣称生产页面完全通过。
+本文汇总 0.12.5 的候选发布文案、验证证据和发布待办。
 
 ## Current source
 
@@ -34,7 +34,7 @@ node scripts/verify.mjs           passed (27 manifest resources, 22 JavaScript f
 git diff --check                  passed
 ```
 
-临时未登录 Edge 配置验证了一次相关推荐同页切换：URL 保持同一文档，播放器仍在标题上方，视频节点持续播放。自动验证和这次公开页面探针不能替代登录态 Edge/Chrome 的全面人工验收。
+浏览器定向验证：临时未登录 Edge 配置完成相关推荐同页切换，URL 保持同一文档，播放器留在标题上方，视频节点持续播放。完整登录态人工验收待执行，验收范围见 [`PAGE_AUDIT.md`](../PAGE_AUDIT.md)。
 
 ## Known limitations
 
@@ -53,4 +53,4 @@ git diff --check                  passed
 - [ ] 扩展在全新浏览器 profile 中可以加载。
 - [ ] 首页、搜索、动态、Watch、Watch Later 和 Favorites 已完成人工检查。
 - [ ] 发布压缩包不包含 `.git/`、`output/`、`artifacts/`、浏览器 profile 或个人配置。
-- [ ] Release 页面明确列出尚未验证的项目。
+- [ ] Release 页面列出登录态人工验收状态和其余待验证项目。

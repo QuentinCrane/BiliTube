@@ -64,12 +64,12 @@ git diff --check
 
 `python scripts/theme_performance_probe.py` 在 1920×1080、2 倍缩放的临时 Edge 环境记录 RAF 帧间隔和 Chrome Paint 轨迹。报告包含快照准备阶段的最长间隔，不能用整体中位数掩盖启动停顿；这些数据不是用户显示器的实际刷新率。脚本输出均保存在 `output/`，不提交账号或媒体 URL 查询令牌。
 
-2026-10-26 在 Edge 156.0.4314.42 无头模式的三次探测中，请求至过渡结束为 222–250ms，RAF 帧间隔 P95 约 7ms，最长间隔 27.9–34.8ms。Paint 统计限定在切换请求与完成之间，等待 Chrome 的 trace 完整写出后才开始下一轮。这验证了当前浏览器中的短过渡路径，不作为有界面显示的帧率承诺。
+2026-10-26 在 Edge 156.0.4314.42 无头模式的三次探测中，请求至过渡结束为 222–250ms，RAF 帧间隔 P95 约 7ms，最长间隔 27.9–34.8ms。Paint 统计限定在切换请求与完成之间，等待 Chrome 的 trace 完整写出后才开始下一轮。该数据描述当前无头 Edge 的短过渡路径。
 
 `python scripts/watch_layout_smoke.py` 在 390、1000、1440、1920px 窗口验证预绘、挂载和延迟初始化三个阶段。四种隔离布局的播放器、标题、工具栏和简介几何一致，布局偏移为 0；另验证 6 秒超时恢复原生作者后，迟到的初始化不会再移动推荐列表。输出在 `output/watch-layout/`。
 
-真实播放页探测增加逐帧区域几何与 Layout Shift 来源记录。修复前，`BV1GJ411x7h7` 的播放器从 y=174 移到 72，工具栏在作者到达时下移 40px；修复后，这些外层区域的位置从首帧保持一致。原生播放器内部的弹幕、提示和互动控件仍可能产生自己的布局变化，不能将隔离布局的 0 偏移推广为整个生产页面的 0 偏移。
+真实播放页探测增加逐帧区域几何与 Layout Shift 来源记录。修复前，`BV1GJ411x7h7` 的播放器从 y=174 移到 72，工具栏在作者到达时下移 40px；修复后，这些外层区域的位置从首帧保持一致。该结论描述播放器、标题、工具栏和简介等外层区域；弹幕、提示和互动控件的内部布局另由原生播放器管理。
 
-2026-10-26 的同页原生/扩展对照均出现站点 `COLS: response timeout`，均只有一次媒体 `loadstart` 且最终处于播放状态。该次检查确认外层布局和播放连续性，不表示生产页面没有站点脚本错误；原始记录位于 `output/watch-startup-control/report.json`。
+2026-10-26 的同页原生/扩展对照均记录到站点 `COLS: response timeout`，每次只有一次媒体 `loadstart`，最终均处于播放状态。该次检查记录外层布局和播放连续性；原始记录位于 `output/watch-startup-control/report.json`。
 
-2026-10-26 使用 `scripts/watch_navigation_probe.py` 在临时未登录 Edge 156.0.4314.42 中点击真实右侧推荐，复现播放器容器丢失布局标记：从 `BV1cU4y1A7ud` 进入 `BV11t411y7FV` 后，播放器仍在播放，但 flex order 变为 6、顶部落到 y=1114.5，首屏只剩标题和评论。补齐播放器容器 class 监听后，同一路径及随后共 5 次同页推荐切换均保持播放器在 y=72、标题上方；各次媒体 readyState=4、处于播放状态，全程未刷新。对照记录分别在 `output/watch-navigation-before/` 和 `output/watch-navigation-after/`。这覆盖公开推荐导航，未使用用户登录配置。
+2026-10-26 使用 `scripts/watch_navigation_probe.py` 在临时未登录 Edge 156.0.4314.42 中点击真实右侧推荐，复现播放器容器丢失布局标记：从 `BV1cU4y1A7ud` 进入 `BV11t411y7FV` 后，播放器仍在播放，但 flex order 变为 6、顶部落到 y=1114.5，首屏只剩标题和评论。补齐播放器容器 class 监听后，同一路径及随后共 5 次同页推荐切换均保持播放器在 y=72、标题上方；各次媒体 readyState=4、处于播放状态，全程未刷新。该探测使用公开推荐导航和临时未登录配置；对照记录分别在 `output/watch-navigation-before/` 和 `output/watch-navigation-after/`。

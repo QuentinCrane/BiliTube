@@ -113,7 +113,7 @@ git diff --check
 
 BiliTube 没有自建服务器、账号系统、广告或云端同步。设置保存在浏览器的 `chrome.storage.local`，运行时缓存主要保留在内存中。扩展只访问 Manifest 中声明的 Bilibili 页面和资源域名，不向 BiliTube 自有服务上传用户数据。权限用途和数据边界见 [`docs/PRIVACY.md`](docs/PRIVACY.md)。
 
-Bilibili 的页面 DOM、接口字段、WBI 参数和登录策略可能变化。未登录时，历史记录、动态、订阅、稍后再看和收藏夹可能为空；自动测试通过也不等同于当前 Bilibili 页面已经完成实机验收。
+Bilibili 的页面 DOM、接口字段、WBI 参数和登录策略可能变化。未登录时，历史记录、动态、订阅、稍后再看和收藏夹可能为空。自动测试覆盖源码契约；当前浏览器和页面的实测结果记录在 [`PAGE_AUDIT.md`](PAGE_AUDIT.md)。
 
 ## 文档
 
