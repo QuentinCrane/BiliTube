@@ -79,7 +79,8 @@ async function getWbiKeys() {
   if (wbiKeysPromise) return wbiKeysPromise;
   wbiKeysPromise = (async () => {
     try {
-      const nav = await json('https://api.bilibili.com/x/web-interface/nav');
+      // Account chrome and WBI signing need the same nav response at startup.
+      const nav = await cached('account', 30000, () => json('https://api.bilibili.com/x/web-interface/nav'));
       const keys = globalThis.BiliTubeWbi && globalThis.BiliTubeWbi.keysFromNav(nav);
       if (!keys) return null;
       wbiKeysCache = { ...keys, timestamp:Date.now() };

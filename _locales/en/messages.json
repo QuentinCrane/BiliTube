@@ -267,5 +267,6 @@
   "retry_load": {"message": "Retry"},
   "previous_videos": {"message": "Previous videos"},
   "next_videos": {"message": "Next videos"},
-  "discover_videos": {"message": "Discover videos"}
+  "discover_videos": {"message": "Discover videos"},
+  "history_unknown_date": { "message": "Unknown viewing date" }
 }

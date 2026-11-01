@@ -81,6 +81,12 @@ test('account background request uses the Bilibili nav endpoint', async () => {
   assert.equal(url.pathname,'/x/web-interface/nav');
 });
 
+test('account and WBI startup share one concurrent nav request', async () => {
+  const h=createHarness();
+  await Promise.all([h.request('home'),h.request('account')]);
+  assert.equal(h.urls.filter(url=>new URL(url).pathname==='/x/web-interface/nav').length,1);
+});
+
 test('search forwards sort and duration and isolates cached variants', async () => {
   const h=createHarness();
   await h.request('search',{keyword:'demo',category:'video',order:'click',duration:2});

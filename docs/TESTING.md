@@ -32,6 +32,19 @@ node scripts/verify.mjs
 git diff --check
 ```
 
+动效与界面需要真实 Chromium 渲染，用两个独立的脚本，不新增 npm 依赖（脚本以 Chrome/Edge 无头模式运行，可用 `BROWSER_EXECUTABLE` 覆盖路径）：
+
+```powershell
+# 同路由 FLIP、分页追加、动效开关和主题互斥的数值断言
+python scripts/motion_smoke.py
+
+# 生成首页、搜索、收藏、动态、稍后再看、频道、骨架屏的深浅色截图
+python scripts/ui_preview.py --tag after
+python scripts/ui_preview.py --tag after-dark --theme dark
+```
+
+`ui_preview.py` 会把确定性的 SVG 封面、固定数据和一个离线夹具页写入 `output/ui-preview/<tag>/`，用于同一版本前后对比；`--demo` 参数可以生成带“打乱顺序 / 追加 / 切换主题 / 动效强度”按钮的手动演示页。两者都不访问 Bilibili，也不代表登录态下的接口兼容性。
+
 当前仓库不需要 `npm install`，也没有 `package.json`。测试使用 Node.js 内置 test runner，扩展运行时使用浏览器提供的 Chrome API。
 
 ## Test areas
@@ -155,6 +168,8 @@ python scripts/watch_navigation_probe.py --clicks 5
 - [ ] URL 增加 `bilitube_native=1` 后可以恢复原生 Bilibili 页面。
 
 ## Browser evidence template
+
+性能修改的测量方法、对比结果和验收边界见 [PERFORMANCE.md](PERFORMANCE.md)。确定性的浏览器性能回归可运行 `python scripts/performance_audit.py`；时间对比应独立、顺序运行。
 
 真实页面验收可以按下面格式记录在 Issue、PR 或 release notes 中：
 

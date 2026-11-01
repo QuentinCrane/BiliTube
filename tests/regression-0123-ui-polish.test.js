@@ -35,7 +35,8 @@ test('Watch rebinds core markers after Bilibili rewrites native classes', () => 
   const watch = read('src/core/watch.js');
   assert.match(watch, /classObserver\s*=\s*new MutationObserver/);
   assert.match(watch, /attributeFilter:\s*\[['"]class['"]\]/);
-  assert.match(watch, /discoverAddedRegions\(mutation\.target\)/);
+  assert.match(watch, /changed\.add\(mutation\.target\)/);
+  assert.match(watch, /discoverAddedRegions\(node, false\)/);
 });
 
 test('top bar uses Dynamic instead of Upload', () => {

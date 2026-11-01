@@ -300,14 +300,25 @@
       else if(!old){const button=watchLaterQuick(card.__btCardItem,callbacks);if(button)media.append(button);}
     }
   }
+  function cardSignature(item,callbacks={}){
+    return JSON.stringify([{...item,imagePriority:undefined},callbacks.showCardAuthor?callbacks.showCardAuthor():true,callbacks.showCardMeta?callbacks.showCardMeta():true,callbacks.showWatchLaterQuick?callbacks.showWatchLaterQuick():true]);
+  }
+  function reuseCard(className,item,callbacks){
+    if(!callbacks.reuseCard)return null;
+    const key=String(item.bvid||item.id||item.href||''),signature=cardSignature(item,callbacks);
+    const existing=callbacks.reuseCard(className,key,signature);if(!existing)return null;
+    const placeholder=e('article',className);
+    placeholder.__btCardKey=key;placeholder.__btCardSignature=signature;placeholder.__btReuseCard=existing;
+    return placeholder;
+  }
   function markCard(card,item,media,callbacks={}){
     card.__btCardKey=String(item.bvid||item.id||item.href||'');card.__btCardItem=item;
-    card.__btCardSignature=JSON.stringify([{...item,imagePriority:undefined},callbacks.showCardAuthor?callbacks.showCardAuthor():true,callbacks.showCardMeta?callbacks.showCardMeta():true,callbacks.showWatchLaterQuick?callbacks.showWatchLaterQuick():true]);
+    card.__btCardSignature=cardSignature(item,callbacks);
     let thumbnail=String(item.thumbnail||'');
     try{const url=new URL(thumbnail);if(url.hostname.endsWith('.hdslb.com'))thumbnail=url.pathname.split('@')[0];}catch{}
     if(media)media.__btMediaKey=JSON.stringify([item.bvid||item.href,thumbnail]);
   }
-  function createCard(item,callbacks={}){const card=e('article','bt-video-card');const media=e('div','bt-card-media');const thumbLink=e('a','bt-thumb-link');bindLink(thumbLink,item.href,callbacks);const thumb=imageBox(item,callbacks);thumbLink.append(thumb);media.append(thumbLink);const quick=watchLaterQuick(item,callbacks);if(quick)media.append(quick);card.append(media);const row=e('div','bt-card-row');const avLink=e('a','bt-avatar-link');bindLink(avLink,item.authorHref||item.href,callbacks);avLink.append(avatar(item));const info=e('div','bt-card-info');const title=e('a','bt-card-title',item.title||T('unnamed_video','未命名视频'));bindLink(title,item.href,callbacks);info.append(title);const showAuthor=!callbacks.showCardAuthor||callbacks.showCardAuthor();const showMeta=!callbacks.showCardMeta||callbacks.showCardMeta();if(showAuthor&&item.author){const author=e('a','bt-card-author',item.author);bindLink(author,item.authorHref||item.href,callbacks);info.append(author);}if(showMeta&&item.meta)info.append(e('div','bt-card-meta',item.meta));if(item.dynamicHref){const discussion=e('a','bt-card-author bt-dynamic-discussion',T('dynamic_discussion','查看动态与讨论'));discussion.href=item.dynamicHref;info.append(discussion);}row.append(avLink,info);card.append(row);markCard(card,item,media,callbacks);card.__btPreviewHost=thumb;if(callbacks.bindPreview)callbacks.bindPreview(card,item,thumb);return card;}
+  function createCard(item,callbacks={},className='bt-video-card'){const reused=reuseCard(className,item,callbacks);if(reused)return reused;const card=e('article',className);const media=e('div','bt-card-media');const thumbLink=e('a','bt-thumb-link');bindLink(thumbLink,item.href,callbacks);const thumb=imageBox(item,callbacks);thumbLink.append(thumb);media.append(thumbLink);const quick=watchLaterQuick(item,callbacks);if(quick)media.append(quick);card.append(media);const row=e('div','bt-card-row');const avLink=e('a','bt-avatar-link');bindLink(avLink,item.authorHref||item.href,callbacks);avLink.append(avatar(item));const info=e('div','bt-card-info');const title=e('a','bt-card-title',item.title||T('unnamed_video','未命名视频'));bindLink(title,item.href,callbacks);info.append(title);const showAuthor=!callbacks.showCardAuthor||callbacks.showCardAuthor();const showMeta=!callbacks.showCardMeta||callbacks.showCardMeta();if(showAuthor&&item.author){const author=e('a','bt-card-author',item.author);bindLink(author,item.authorHref||item.href,callbacks);info.append(author);}if(showMeta&&item.meta)info.append(e('div','bt-card-meta',item.meta));if(item.dynamicHref){const discussion=e('a','bt-card-author bt-dynamic-discussion',T('dynamic_discussion','查看动态与讨论'));discussion.href=item.dynamicHref;info.append(discussion);}row.append(avLink,info);card.append(row);markCard(card,item,media,callbacks);card.__btPreviewHost=thumb;if(callbacks.bindPreview)callbacks.bindPreview(card,item,thumb);return card;}
   function withImagePriority(item,index,state){const rank=state?state.next++:index;const priority=rank<4?'high':rank<8?'low':false;return priority?{...item,imagePriority:priority}:item;}
   function heading(title,sub){const h=e('div','bt-page-heading');h.append(e('h1','',title));if(sub)h.append(e('p','',sub));return h;}
   function skeletonCard(){const card=e('article','bt-video-card bt-skeleton-card');const media=e('div','bt-card-media');media.append(e('div','bt-thumb bt-skeleton-block'));card.append(media);const row=e('div','bt-card-row');row.append(e('span','bt-card-avatar bt-skeleton-circle'));const info=e('div','bt-card-info');info.append(e('span','bt-skeleton-line is-wide'),e('span','bt-skeleton-line is-short'),e('span','bt-skeleton-line is-meta'));row.append(info);card.append(row);return card;}
@@ -340,7 +351,7 @@
     }outlet.append(toolbar);
   }
   function createSearchRow(raw,callbacks={},index=8){
-    const item=withImagePriority(raw,index);const row=e('article',`bt-search-row kind-${item.kind||'video'}`);const media=e('div','bt-search-media');const a=e('a','bt-search-thumb');bindLink(a,item.href,callbacks);const thumb=imageBox(item,callbacks);a.append(thumb);media.append(a);
+    const item=withImagePriority(raw,index),className=`bt-search-row kind-${item.kind||'video'}`;const reused=reuseCard(className,item,callbacks);if(reused)return reused;const row=e('article',className);const media=e('div','bt-search-media');const a=e('a','bt-search-thumb');bindLink(a,item.href,callbacks);const thumb=imageBox(item,callbacks);a.append(thumb);media.append(a);
     if(item.kind==='video'){const quick=watchLaterQuick(item,callbacks);if(quick)media.append(quick);}
     const info=e('div','bt-search-info');const title=e('a','bt-search-title',item.title);bindLink(title,item.href,callbacks);info.append(title);
     if((!callbacks.showCardMeta||callbacks.showCardMeta())&&item.meta)info.append(e('div','bt-card-meta',item.meta));
@@ -363,7 +374,7 @@
     list.append(fragment);updateFeedStatus(outlet,data,callbacks);return true;
   }
   function createShelfCard(item,callbacks={}){
-    const card=createCard(item,callbacks);card.classList.add('bt-special-card',`is-${item.kind||'video'}`);
+    const card=createCard(item,callbacks,`bt-video-card bt-special-card is-${item.kind||'video'}`);if(card.__btReuseCard)return card;
     const thumb=card.querySelector('.bt-thumb');
     if(thumb&&item.kind==='live'){const badge=e('span','bt-special-badge is-live','LIVE');thumb.append(badge);}
     else if(thumb&&item.kind==='bangumi'){const badge=e('span','bt-special-badge',T('anime_badge','番剧'));thumb.append(badge);}
@@ -408,6 +419,11 @@
     if(!visibleUsers.length&&!results.length){if(data.loading){outlet.append(e('div','bt-loading-state',T('loading_search','正在从 Bilibili 搜索…')));renderSkeletonSearchList(outlet,4);}else outlet.append(e('div','bt-empty',data.error||T('no_results','没有找到结果')));}
     outlet.append(feedSentinel('search',Boolean(data.loading),data.hasMore));
   }
+  const historyDateFormatter=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit'});
+  function dayLabel(timestamp){
+    const value=Number(timestamp),date=new Date(value*1000);
+    return value>0&&Number.isFinite(date.getTime())?historyDateFormatter.format(date):T('history_unknown_date','观看日期未知');
+  }
   function renderHistory(outlet,data,callbacks){
     const header=e('div','bt-history-header');
     header.append(heading(T('history_title','历史记录'),''));
@@ -419,6 +435,7 @@
       const item=withImagePriority(raw,index,priorityState);
       const day=dayLabel(item.viewedAt);
       if(day!==last){list.append(e('h2','bt-history-day',day));last=day;}
+      const reused=reuseCard('bt-history-row',item,callbacks);if(reused){list.append(reused);continue;}
       const row=e('article','bt-history-row');
       row.dataset.search=`${item.title||''} ${item.author||''}`.toLowerCase();
       const a=e('a','bt-history-thumb');bindLink(a,item.href,callbacks);
@@ -429,7 +446,7 @@
       const title=e('a','bt-history-title',item.title);bindLink(title,item.href,callbacks);info.append(title);
       if(item.author){const au=e('a','bt-card-author',item.author);bindLink(au,item.authorHref||item.href,callbacks);info.append(au);}
       if(item.meta)info.append(e('div','bt-card-meta',item.meta));
-      row.append(a,info);list.append(row);
+      row.append(a,info);markCard(row,item,null,callbacks);list.append(row);
     }
     if(!list.querySelector('.bt-history-row')) list.append(e('div','bt-empty',data.error||T('empty_history','暂时没有读取到观看记录')));
     else list.append(feedSentinel('history',Boolean(data.loading),data.hasMore));
@@ -453,7 +470,7 @@
     const top=e('div','bt-subscriptions-heading');top.append(e('h1','',T('latest','最新')));
     const filters=e('nav','bt-chip-row');[[T('all_updates','全部动态'),'all'],[T('submitted_videos','投稿视频'),'videos'],[T('updates_only','只看动态'),'updates']].forEach(([label,key])=>{const a=e('a',`bt-chip${mode===key?' is-active':''}`,label);a.href=`https://t.bilibili.com/?bilitube_dynamic=${key}`;a.setAttribute('aria-current',mode===key?'page':'false');filters.append(a);});top.append(filters);outlet.append(top);
     if(mode!=='updates'&&videos.length){const grid=e('section','bt-video-grid bt-dynamic-video-grid');for(const [index,video] of videos.entries())grid.append(createCard(withImagePriority(video,index,priorityState),callbacks));outlet.append(grid);}else if(mode==='videos')outlet.append(e('div','bt-empty',data.error||T('no_submitted_videos','暂时没有投稿视频')));
-    if(mode!=='videos'&&others.length){if(videos.length)outlet.append(e('h2','bt-dynamic-section-title',T('other_updates','其他动态')));const feed=e('section','bt-dynamic-feed bt-dynamic-secondary');for(const item of others){const card=e('article','bt-dynamic-card');const head=e('div','bt-dynamic-head');const au=e('a','bt-dynamic-author');bindLink(au,item.authorHref,callbacks);au.append(avatar(item),e('strong','',item.author||T('uploader','UP主')));head.append(au);if(item.time){const time=e(item.href?'a':'span','bt-dynamic-time',item.time);if(item.href)time.href=item.href;head.append(time);}card.append(head);if(item.text)card.append(e('p','bt-dynamic-text',item.text));if(item.images&&item.images.length){const images=e('div',`bt-dynamic-images count-${Math.min(item.images.length,3)}`);for(const src of item.images.slice(0,9)){const img=e('img','');img.src=src;img.loading='lazy';img.alt='';img.decoding='async';if(item.href){const link=e('a','bt-dynamic-image-link');link.href=item.href;link.append(img);images.append(link);}else images.append(img);}card.append(images);}if(item.href){const discussion=e('a','bt-text-button bt-dynamic-discussion',T('dynamic_discussion','查看动态与讨论'));discussion.href=item.href;card.append(discussion);}markCard(card,item,null,callbacks);feed.append(card);}outlet.append(feed);}
+    if(mode!=='videos'&&others.length){if(videos.length)outlet.append(e('h2','bt-dynamic-section-title',T('other_updates','其他动态')));const feed=e('section','bt-dynamic-feed bt-dynamic-secondary');for(const item of others){const reused=reuseCard('bt-dynamic-card',item,callbacks);if(reused){feed.append(reused);continue;}const card=e('article','bt-dynamic-card');const head=e('div','bt-dynamic-head');const au=e('a','bt-dynamic-author');bindLink(au,item.authorHref,callbacks);au.append(avatar(item),e('strong','',item.author||T('uploader','UP主')));head.append(au);if(item.time){const time=e(item.href?'a':'span','bt-dynamic-time',item.time);if(item.href)time.href=item.href;head.append(time);}card.append(head);if(item.text)card.append(e('p','bt-dynamic-text',item.text));if(item.images&&item.images.length){const images=e('div',`bt-dynamic-images count-${Math.min(item.images.length,3)}`);for(const src of item.images.slice(0,9)){const img=e('img','');img.src=src;img.loading='lazy';img.alt='';img.decoding='async';if(item.href){const link=e('a','bt-dynamic-image-link');link.href=item.href;link.append(img);images.append(link);}else images.append(img);}card.append(images);}if(item.href){const discussion=e('a','bt-text-button bt-dynamic-discussion',T('dynamic_discussion','查看动态与讨论'));discussion.href=item.href;card.append(discussion);}markCard(card,item,null,callbacks);feed.append(card);}outlet.append(feed);}
     if(!videos.length&&!others.length){if(data.loading){outlet.append(e('div','bt-loading-state',T('loading_dynamic','正在读取动态…')));renderSkeletonGrid(outlet,6);}else outlet.append(e('div','bt-empty',data.error||T('empty_dynamic','暂时没有读取到动态')));}
     outlet.append(feedSentinel('dynamic',Boolean(data.loading),data.hasMore));
   }
@@ -462,7 +479,7 @@
     const layout=e('div','bt-library-layout');
     const summary=e('section','bt-library-summary');const cover=e('div','bt-library-cover');if(videos[0]&&videos[0].thumbnail){const img=e('img','');img.src=videos[0].thumbnail;img.alt='';cover.append(img);}else cover.append(icon('later'));const detail=e('div','bt-library-summary-info');detail.append(e('h1','',T('watch_later_title','稍后再看')),e('p','',T('watch_later_summary',`${videos.length} 个视频 · 保留 B站观看进度`,[videos.length])));const play=navLink('https://www.bilibili.com/list/watchlater?bilitube_native=1', T('play_all','播放全部'),'later',callbacks,'bt-primary-button');if(videos.length)detail.append(play);summary.append(cover,detail);layout.append(summary);
     if(!videos.length){if(data.loading){layout.append(e('div','bt-loading-state',T('loading_watch_later','正在读取稍后再看…')));renderSkeletonLibraryList(layout,4);}else {const empty=e('div','bt-empty bt-empty-action');empty.append(e('p','',data.error||T('watch_later_empty','稍后再看列表为空')));if(!data.error){const discover=e('a','bt-text-button',T('discover_videos','去首页发现视频'));discover.href='https://www.bilibili.com/';empty.append(discover);}layout.append(empty);}outlet.append(layout);return;}
-    const list=e('section','bt-library-list');const priorityState={next:0};for(const [index,raw] of videos.entries()){const item=withImagePriority(raw,index,priorityState);const row=e('article','bt-library-row');const playHref=watchLaterPlayHref(item);const a=e('a','bt-library-thumb');bindLink(a,playHref,callbacks);const thumb=imageBox(item,callbacks);if(item.progress>0){const p=e('div','bt-history-progress');const f=e('span');f.style.width=`${Math.round(item.progress*100)}%`;p.append(f);thumb.append(p);}a.append(thumb);const info=e('div','bt-library-info');const title=e('a','bt-history-title',item.title);bindLink(title,playHref,callbacks);info.append(title);if(item.author){const au=e('a','bt-card-author',item.author);bindLink(au,item.authorHref,callbacks);info.append(au);}if(item.meta)info.append(e('div','bt-card-meta',item.meta));const remove=e('button','bt-text-button bt-library-remove',T('remove','移除'));remove.type='button';remove.setAttribute('aria-label',T('remove_video_watchlater',`从稍后再看移除 ${item.title}`,[item.title]));remove.addEventListener('click',async()=>{if(remove.disabled||!callbacks.toggleWatchLater)return;remove.disabled=true;try{await callbacks.toggleWatchLater(item);}finally{remove.disabled=false;}});info.append(remove);row.append(a,info);markCard(row,item,a,callbacks);list.append(row);}layout.append(list);outlet.append(layout);
+    const list=e('section','bt-library-list');const priorityState={next:0};for(const [index,raw] of videos.entries()){const item=withImagePriority(raw,index,priorityState);const reused=reuseCard('bt-library-row',item,callbacks);if(reused){list.append(reused);continue;}const row=e('article','bt-library-row');const playHref=watchLaterPlayHref(item);const a=e('a','bt-library-thumb');bindLink(a,playHref,callbacks);const thumb=imageBox(item,callbacks);if(item.progress>0){const p=e('div','bt-history-progress');const f=e('span');f.style.width=`${Math.round(item.progress*100)}%`;p.append(f);thumb.append(p);}a.append(thumb);const info=e('div','bt-library-info');const title=e('a','bt-history-title',item.title);bindLink(title,playHref,callbacks);info.append(title);if(item.author){const au=e('a','bt-card-author',item.author);bindLink(au,item.authorHref,callbacks);info.append(au);}if(item.meta)info.append(e('div','bt-card-meta',item.meta));const remove=e('button','bt-text-button bt-library-remove',T('remove','移除'));remove.type='button';remove.setAttribute('aria-label',T('remove_video_watchlater',`从稍后再看移除 ${item.title}`,[item.title]));remove.addEventListener('click',async()=>{if(remove.disabled||!callbacks.toggleWatchLater)return;remove.disabled=true;try{await callbacks.toggleWatchLater(item);}finally{remove.disabled=false;}});info.append(remove);row.append(a,info);markCard(row,item,a,callbacks);list.append(row);}layout.append(list);outlet.append(layout);
   }
   function renderFavorites(outlet,data,callbacks){
     const selectedFolder=data.selectedFolder||null;outlet.append(heading(T('favorites_title','收藏夹'),T('favorites_summary','像播放列表一样浏览 B站收藏')));

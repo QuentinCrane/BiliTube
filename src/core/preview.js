@@ -16,6 +16,8 @@
     let active = null;
     const offscreen = new WeakSet();
     const bindings = new Map();
+    const doc = typeof document !== 'undefined' ? document : null;
+    const onVisibilityChange = () => { if (doc.hidden) cleanupActive(); };
     const trackPointer=event=>{if(active)active.point={x:event.clientX,y:event.clientY};};
     const observer = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver((entries) => {
       for (const entry of entries) {
@@ -29,6 +31,7 @@
 
     function cleanupActive() {
       if (!active) return;
+      if(doc)doc.removeEventListener('visibilitychange',onVisibilityChange);
       if(typeof document!=='undefined')document.removeEventListener('pointermove',trackPointer,true);
       if (active.timer) clearTimeout(active.timer);
       if (active.leaveTimer) clearTimeout(active.leaveTimer);
@@ -110,11 +113,13 @@
     }
 
     function begin(id, host, card, event) {
+      if(doc&&doc.hidden)return;
       if(active&&active.card===card){if(active.leaveTimer){clearTimeout(active.leaveTimer);active.leaveTimer=null;}return;}
       cleanupActive();
       const session = { id, host, card, timer: null, leaveTimer: null, layer: null, video: null };
       if(event&&Number.isFinite(event.clientX))session.point={x:event.clientX,y:event.clientY};
       active = session;
+      if(doc)doc.addEventListener('visibilitychange',onVisibilityChange);
       if(typeof document!=='undefined')document.addEventListener('pointermove',trackPointer,{capture:true,passive:true});
       session.timer = setTimeout(() => {
         session.timer = null;
@@ -176,6 +181,9 @@
     }
 
     function prune(){for(const [card,unbind] of bindings)if(!card.isConnected){if(active&&active.card===card)cleanupActive();unbind();}}
+    // Read-only probe for the motion layer: a playing preview must never become
+    // a flipped element, otherwise the video layer is re-composited mid-frame.
+    function isActive(){return Boolean(active);}
     function resume(){
       if(!active||shouldRetain()||typeof active.card.matches!=='function')return;
       const rect=active.point&&active.card.getBoundingClientRect();
@@ -183,7 +191,7 @@
       if(!inside&&!active.card.matches(':hover')&&!active.card.contains(document.activeElement))cleanupActive();
     }
 
-    return { bind, resolve, destroy, prune, resume, seekTime: Model && Model.seekTime };
+    return { bind, resolve, destroy, prune, resume, isActive, seekTime: Model && Model.seekTime };
   }
   return { createController };
 });

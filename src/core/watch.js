@@ -22,7 +22,9 @@
     { marker: 'bt-native-watch-description', selectors: ['#v_desc', '.video-desc-container', '.video-desc'] },
     { marker: 'bt-native-watch-comments', selectors: ['#comment-module', '#comment-body', '#commentapp', '.commentapp', '.comment-container', '.bili-comment-container', '.bb-comment', 'bili-comments'] },
     { marker: 'bt-native-watch-related', selectors: ['.recommend-list-v1', '.recommend-list', '.rec-list', '.next-play', '.video-page-card-small-list', '.video-card-list', '.related-list', '[class*=recommend_wrap]'] },
-  ];
+  ].map(def => ({ ...def, selector: def.selectors.join(',') }));
+  const REGION_SELECTOR = REGION_DEFS.map(def => def.selector).join(',');
+  const PLAYER_INTERIOR = '#playerWrap,#bilibili-player-wrap,#bilibili-player,#bilibiliPlayer,.bpx-player-container';
   const ROOT_CLASSES = ['bt-watch-decorated','bt-watch-ready','bt-player-wide','bt-player-web-fullscreen','bt-player-mini','bt-player-browser-fullscreen'];
   const CORE_MARKERS = new Set(['bt-watch-native-layout','bt-native-watch-main','bt-native-watch-aside','bt-native-watch-player-host','bt-native-watch-info']);
 
@@ -117,32 +119,22 @@
       return { layout, main, aside, player, info };
     }
 
-    function discoverAddedRegions(node) {
+    function discoverAddedRegions(node, descendants = true) {
       if (!node || node.nodeType !== 1) return;
       pruneDetachedMarkers();
       const player = first(['#playerWrap','#bilibili-player-wrap','#bilibili-player','#bilibiliPlayer','.bpx-player-container']);
       if (player && player !== node && player.contains(node)) return;
       const activeScreens = playerScreens();
       if (activeScreens.some(value => ['wide','web','web-fullscreen','pagefullscreen','page-fullscreen'].includes(value))) return;
-      const lateMarkers = new Set([
-        'bt-native-watch-up','bt-native-watch-toolbar','bt-native-watch-description',
-        'bt-native-watch-comments','bt-native-watch-related','bt-native-watch-aside-inner'
-      ]);
-      const observedMarkers = new Set([...lateMarkers, ...CORE_MARKERS]);
       let coreChanged = false;
-      for (const def of REGION_DEFS) {
-        if (!observedMarkers.has(def.marker)) continue;
-        for (const selector of def.selectors) {
+      const candidates = [node];
+      if (descendants && node.querySelectorAll) candidates.push(...node.querySelectorAll(REGION_SELECTOR));
+      for (const candidate of candidates) {
+        for (const def of REGION_DEFS) {
           try {
-            if (node.matches && node.matches(selector)) {
-              const added = mark(node, def.marker);
+            if (candidate.matches && candidate.matches(def.selector)) {
+              const added = mark(candidate, def.marker);
               if (CORE_MARKERS.has(def.marker) && added) coreChanged = true;
-            }
-            if (node.querySelectorAll) {
-              for (const child of node.querySelectorAll(selector)) {
-                const added = mark(child, def.marker);
-                if (CORE_MARKERS.has(def.marker) && added) coreChanged = true;
-              }
             }
           } catch {}
         }
@@ -322,14 +314,22 @@
       if (typeof MutationObserver === 'function' && ready && ready.layout) {
         const layout = ready.layout;
         regionObserver = new MutationObserver((mutations) => {
+          const added = new Set();
           for (const mutation of mutations) {
+            // Danmaku, player controls and extension chrome cannot introduce
+            // layout regions. Reject the whole mutation before querying nodes.
+            if (mutation.target.closest?.(`${PLAYER_INTERIOR},#bilitube-watch-layer,.bt-watch-author-row`)) continue;
             for (const node of mutation.addedNodes || []) {
-              if (node && node.nodeType === 1) {
-                const app = node.matches && node.matches('#app') ? node : node.querySelector && node.querySelector('#app');
-                if (app && regionObserver) regionObserver.observe(app, { childList: true, subtree: true });
-              }
-              discoverAddedRegions(node);
+              if (node && node.nodeType === 1 && node.isConnected !== false) added.add(node);
             }
+          }
+          for (const node of added) {
+            let parent=node.parentElement;
+            while(parent&&!added.has(parent))parent=parent.parentElement;
+            if(parent)continue;
+            const app = node.matches?.('#app') ? node : node.querySelector?.('#app');
+            if (app && regionObserver) regionObserver.observe(app, { childList: true, subtree: true });
+            discoverAddedRegions(node);
           }
         });
         const app = doc.querySelector('#app');
@@ -342,8 +342,14 @@
           regionObserver.observe(doc.body || ready.layout.parentElement || layout, { childList: true, subtree: true });
         }
         classObserver = new MutationObserver((mutations) => {
+          const changed = new Set();
           for (const mutation of mutations) {
-            if (mutation.type === 'attributes') discoverAddedRegions(mutation.target);
+            if (mutation.type === 'attributes') changed.add(mutation.target);
+          }
+          for (const node of changed) {
+            // Our marker writes also fire this observer. Only a missing native
+            // region marker needs restoration; its descendants did not change.
+            if (REGION_DEFS.some(def => CORE_MARKERS.has(def.marker) && !node.classList.contains(def.marker) && node.matches(def.selector))) discoverAddedRegions(node, false);
           }
         });
         // Related-video navigation reuses this host and Vue rewrites its class.
@@ -395,13 +401,7 @@
     function updateChrome(next = {}) {
       chromeData = { ...chromeData, ...next };
       if (!layer) return;
-      const wasOpen = drawer && drawer.isOpen();
-      const oldHeader = layer.querySelector('[data-role="header"]');
-      if (oldHeader) UI.updateTopbar(oldHeader, chromeData, callbacks);
-      if (drawer) drawer.backdrop.remove();
-      drawer = UI.createSidebarDrawer(chromeData, callbacks);
-      layer.append(drawer.backdrop);
-      if (wasOpen) drawer.toggle();
+      UI.updateChrome(layer,chromeData,callbacks);
     }
 
     function tryMount(theme) {

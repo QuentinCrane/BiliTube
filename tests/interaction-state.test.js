@@ -88,6 +88,19 @@ test('favorite folders are real links without click interception, even with a le
   assert.equal(link.listeners.has('click'), false);
 });
 
+test('nonempty history renders date groups and handles missing timestamps', () => {
+  const {ui}=uiHarness(),outlet=new Element('main');
+  ui.renderHistory(outlet,{videos:[
+    {bvid:'BVhistory1',title:'First',viewedAt:1700000000},
+    {bvid:'BVhistory2',title:'Second',viewedAt:1700000001},
+    {bvid:'BVhistory3',title:'Unknown',viewedAt:0},
+  ],hasMore:false},{});
+  const list=outlet.querySelector('.bt-history-list');
+  assert.equal(list.children.filter(node=>node.className==='bt-history-day').length,2);
+  assert.equal(list.children.filter(node=>node.className==='bt-history-row').length,3);
+  assert.equal(list.querySelector('.bt-history-row').__btCardKey,'BVhistory1');
+});
+
 function appHarness(url,fallback=[]) {
   const pending = [];
   const renders = [];
@@ -115,6 +128,7 @@ function appHarness(url,fallback=[]) {
     BiliTubeWatch:{createDecorator:() => ({mount:() => {watchCalls.mount++;},updateContext:() => {watchCalls.updateContext++;},updateChrome:() => {watchCalls.updateChrome++;},destroy:() => {watchCalls.destroy++;},updateTheme:noOp})},
     BiliTubeExtract:{extractCurrentUser:() => null,extractSearchCards:() => fallback,extractWatch:() => ({})},
     BiliTubePreview:{createController:() => ({destroy:noOp})},
+    BiliTubeMotion:{createController:() => ({allowed:() => false,cancel:noOp,prepare:noOp,measure:() => null,play:() => 0,enterNew:() => 0,snapshotCards:() => new Set()})},
     BiliTubeShell:{createController:() => shell}, BiliTubeActions:{},
   });
   context.window = context;
@@ -285,6 +299,16 @@ test('theme and sidebar-only storage changes do not rebuild the feed', async () 
   await h.changeSettings({theme:'dark'});assert.equal(h.renders.length,count);
   await h.changeSettings({theme:'dark',sidebarCollapsed:true});assert.equal(h.renders.length,count);
   await h.changeSettings({theme:'dark',sidebarCollapsed:true,showCardMeta:false});assert.equal(h.renders.length,count+1);
+});
+
+test('disabled subscriptions skip new route reads and enabling them fetches once',async()=>{
+  const h=appHarness('https://search.bilibili.com/video?keyword=old');
+  await h.changeSettings({showSubscriptions:false});
+  const before=h.pending.filter(item=>item.type==='subscriptions').length;
+  await h.navigate('https://search.bilibili.com/video?keyword=new');
+  assert.equal(h.pending.filter(item=>item.type==='subscriptions').length,before);
+  await h.changeSettings({showSubscriptions:true});
+  assert.equal(h.pending.filter(item=>item.type==='subscriptions').length,before+1);
 });
 
 test('DOM and API versions of the same thumbnail share media identity across CDN resizing', () => {

@@ -267,5 +267,6 @@
   "retry_load": {"message": "重试加载"},
   "previous_videos": {"message": "上一组视频"},
   "next_videos": {"message": "下一组视频"},
-  "discover_videos": {"message": "去首页发现视频"}
+  "discover_videos": {"message": "去首页发现视频"},
+  "history_unknown_date": { "message": "观看日期未知" }
 }

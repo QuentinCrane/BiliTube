@@ -56,6 +56,7 @@
         "src/core/preview.js",
         "src/core/ui.js",
         "src/core/reconcile.js",
+        "src/core/motion.js",
         "src/core/shell.js",
         "src/core/native-adapter.js",
         "src/core/actions.js",

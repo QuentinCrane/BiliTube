@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- 新增 `src/core/motion.js`：同一路由的数据刷新在 `Reconcile.update()` 前后测量可见卡片矩形，用 Web Animations API 做 additive FLIP，卡片、图片和 Hover Preview 节点全程复用，不重建媒体。
+- 分页追加只让新卡片淡入，旧卡片不再重复进场；换路由时只为工具条、分类和标题这类轻量 chrome 播放短暂进入动画，避免为整屏列表创建超高的合成层。
+- 动效统一由一个决策点控制：`motionMode=none`、系统减少动态效果、正在播放的 Hover Preview、超过 24 张可见卡片或主题 View Transition 进行中，都会跳过动画并直接呈现最终布局。
+- 主题 Reveal 仍然独占唯一一次根 View Transition；开始前主动取消局部 FLIP 并清理 transform，局部动画失败时只是失去过渡，内容与交互不受影响。
+- 修正路由进入动画的类名不一致（`is-route-entering` 与样式里的 `bt-route-entering`），此前该动画实际从未触发。
+- 界面精修：分类与筛选 chips 改为胶囊形，顶栏品牌与搜索框统一投影和聚焦环，卡片封面上加描边与悬停阴影、时长改为等宽数字胶囊，标题与作者行距收紧，侧栏分组标题降为说明层级，工具条改为细分隔行，收藏夹目录、空状态、骨架屏和对话框统一圆角与层级。
+- 新增 `scripts/motion_smoke.py`（无头 Chromium 数值断言）与 `scripts/ui_preview.py`（离线截图与手动演示），并补充 `tests/motion.test.js`，覆盖策略矩阵、FLIP 数值、取消清理、追加淡入和无 WAAPI 降级。
+
 ## 0.12.5
 
 - 修复播放页内推荐视频同页切换时，Watch 装饰器先于原站 Vue 更新被销毁重建、播放器节点重建后脱离布局的问题；保留跨视频导航的布局与观察器，并跟踪 SPA 根节点替换恢复原生播放器标记。

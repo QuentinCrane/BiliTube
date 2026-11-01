@@ -38,6 +38,8 @@ manifest.json
 ├── core/extract.js                 bounded DOM fallback extraction
 ├── core/preview.js                 one-card Hover Preview lifecycle
 ├── core/ui.js                      DOM factories and page renderers
+├── core/reconcile.js               keyed card/media reuse for same-route updates
+├── core/motion.js                  local flip, append enter and motion gating
 ├── core/shell.js                   persistent BiliTube shell and route outlet
 ├── core/native-adapter.js          outer adaptation for complex native pages
 ├── core/actions.js                 small action registry
@@ -104,6 +106,25 @@ The content runtime treats normalized data as the UI contract. Renderers should 
 ```
 
 The Header is updated in place so an in-progress search draft is not lost merely because account or subscription data arrives. The Sidebar can be rebuilt when its subscription content changes, but its collapsed state is carried forward. Watch and Adapt pages use the same Header and an overlay drawer instead of inserting a second full page Shell.
+
+## Motion ownership
+
+`core/motion.js` is a visual layer that runs strictly after the DOM has been committed. It never decides what to render and never mutates data:
+
+```text
+same route + keyed cards   -> measure visible rects, reconcile, invert with WAAPI, play
+pagination append          -> keep existing cards, fade in only the new ones
+route change               -> short opacity/rise on page chrome only
+decorate/adapt/passthrough -> no animation from BiliTube
+```
+
+Rules that keep the layer safe:
+
+- The FLIP runs around `Reconcile.update()` through its `beforeApply`/`afterApply` hooks, so `__btCardKey`, `__btMediaKey` and preview bindings keep their existing ownership.
+- Inversion uses an additive `transform`, so a card can keep a CSS hover transform without the two fighting, and `fill: 'none'` leaves no inline style behind.
+- `motionMode=none`, `prefers-reduced-motion: reduce`, an active Hover Preview session, more than 24 visible cards, or a running theme reveal all skip the animation and simply render the final layout.
+- The theme reveal owns the single root View Transition. `app.js` cancels local flips before starting it, and the motion controller re-checks the `bt-theme-reveal` class before measuring.
+- Route enter styles only the small page chrome (toolbar, chips, headings). Animating a full feed would promote a very tall composited layer for no visual gain.
 
 ## Native-first Watch boundary
 

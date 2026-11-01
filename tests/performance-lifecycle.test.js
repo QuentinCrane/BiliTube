@@ -7,8 +7,11 @@ function harness() {
   const timers = new Map();
   const observed = new Set();
   const requests = [];
+  const docListeners = new Map();
+  const document = {hidden:false,addEventListener:(type,fn)=>docListeners.set(type,fn),removeEventListener:type=>docListeners.delete(type)};
   let nextTimer = 0;
   const context = vm.createContext({
+    document,
     setTimeout(fn) { timers.set(++nextTimer, fn); return nextTimer; },
     clearTimeout(id) { timers.delete(id); },
     IntersectionObserver: class {
@@ -32,7 +35,7 @@ function harness() {
       count() { return [...listeners.values()].reduce((sum, set) => sum + set.size, 0); },
     };
   }
-  return { controller, card, timers, observed, requests };
+  return { controller, card, timers, observed, requests, document, docListeners };
 }
 
 test('preview destruction releases all card listeners, observations and pending work', () => {
@@ -93,4 +96,15 @@ test('reconciliation prunes only detached preview cards', () => {
   h.controller.bind(retained,{bvid:'BVkeep'},{});h.controller.bind(removed,{bvid:'BVremoved'},{});
   removed.fire('pointerenter');h.controller.prune();assert.equal(removed.count(),0);assert.equal(h.timers.size,0);
   assert.equal(retained.count(),3);assert.equal(h.observed.size,1);h.controller.destroy();
+});
+
+test('hidden tabs cancel pending previews and reject new hover work without removing card bindings', () => {
+  const h=harness(),card=h.card();h.controller.bind(card,{bvid:'BVhidden'},{});
+  card.fire('pointerenter');assert.equal(h.timers.size,1);
+  h.document.hidden=true;h.docListeners.get('visibilitychange')();
+  assert.equal(h.timers.size,0);assert.equal(h.docListeners.size,0);assert.equal(card.count(),3);
+  card.fire('pointerenter');assert.equal(h.timers.size,0);
+  h.controller.resolve('BVhidden','https://fixture.invalid/late.webm');
+  h.document.hidden=false;card.fire('pointerenter');assert.equal(h.timers.size,1);
+  h.controller.destroy();assert.equal(h.docListeners.size,0);assert.equal(h.timers.size,0);
 });

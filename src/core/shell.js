@@ -5,8 +5,17 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.BiliTubeShell = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createShellModule(UI,Reconcile) {
-  function createController(doc = document) {
+  function createController(doc = document, options = {}) {
+    // motion is an optional visual coordinator. Without it every branch below
+    // still renders identical DOM, it just skips the transition polish.
+    const motion = options.motion || null;
     let root = null, outlet = null, callbacks = null, chromeData = {}, previousRoute = null, previousPayload = null, transitionTimer = null, drawer = null;
+    const reducedMotion = () => Boolean(doc.defaultView && doc.defaultView.matchMedia && doc.defaultView.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    // One decision point for every animation the shell starts.
+    function canAnimate(reason, extra = {}) {
+      if (motion) return motion.allowed(reason, { strategy:'replace', ...extra });
+      return !reducedMotion();
+    }
     function ensure(data={}, nextCallbacks={}) {
       callbacks = nextCallbacks; chromeData = data;
       if (root && root.isConnected) return root;
@@ -17,14 +26,22 @@
       if (!root) ensure(data,callbacks||{});
       const payload={...data,route};
       outlet.setAttribute('aria-busy',String(Boolean(data.loading||data.refreshing)));
-      if(data.append&&previousRoute===route&&UI.appendFeed&&UI.appendFeed(outlet,route,payload,previousPayload,callbacks)){
-        previousPayload=payload;return;
+      if(data.append&&previousRoute===route&&UI.appendFeed){
+        // Pagination reads as "the list grew", never as "the page re-entered".
+        const before=motion?motion.snapshotCards(outlet):null;
+        if(UI.appendFeed(outlet,route,payload,previousPayload,callbacks)){
+          if(motion) motion.enterNew(outlet,before);
+          previousPayload=payload;return;
+        }
       }
       if(Reconcile&&previousRoute===route&&previousPayload&&(previousPayload.renderKey||previousPayload.href)===(payload.renderKey||payload.href)&&previousPayload.mid===payload.mid){
+        // Keyed reconcile: measure visible cards, apply, then invert-and-play.
+        const frame=motion?motion.measure(outlet):null;
+        const hooks=frame&&motion?{beforeApply:()=>motion.prepare(),afterApply:()=>motion.play(frame)}:null;
         const fresh=UI.e('main','bt-main');
-        const staging={...callbacks,staging:true,bindPreview:(card,item,host)=>{card.__btPendingPreview={item,host};}};
+        const staging={...callbacks,staging:true,reuseCard:Reconcile.createReuse(outlet),bindPreview:(card,item,host)=>{card.__btPendingPreview={item,host};}};
         renderContent(fresh,route,payload,staging);
-        Reconcile.update(outlet,fresh,callbacks||{});
+        Reconcile.update(outlet,fresh,callbacks||{},hooks);
         if(UI.updateFeedStatus)UI.updateFeedStatus(outlet,payload,callbacks);
         previousPayload=payload;return;
       }
@@ -32,13 +49,14 @@
       if(drawer)drawer.close();
       if(transitionTimer){clearTimeout(transitionTimer);transitionTimer=null;}
       outlet.classList.remove('is-route-entering');
+      if(motion) motion.cancel(); // a full replacement invalidates any pending flip
       if(callbacks&&callbacks.beforeRender)callbacks.beforeRender();
       outlet.replaceChildren();
       outlet.dataset.route=route;
       renderContent(outlet,route,payload,callbacks);
       if(UI.updateFeedStatus)UI.updateFeedStatus(outlet,payload,callbacks);
       previousRoute=route;previousPayload=payload;
-      if(shouldAnimate&&!(doc.defaultView&&doc.defaultView.matchMedia&&doc.defaultView.matchMedia('(prefers-reduced-motion: reduce)').matches)){
+      if(shouldAnimate&&canAnimate('route')){
         const schedule=doc.defaultView&&typeof doc.defaultView.requestAnimationFrame==='function' ? doc.defaultView.requestAnimationFrame.bind(doc.defaultView) : (callback)=>setTimeout(callback,0);
         schedule(()=>{
           if(!outlet||!outlet.isConnected)return;
@@ -68,7 +86,7 @@
       const side=root&&root.querySelector('[data-role="sidebar"]');if(side)side.classList.toggle('is-collapsed');return false;
     }
     function setLoading(){if(outlet)outlet.setAttribute('aria-busy','true');const target=outlet&&outlet.querySelector('[data-bt-feed]');if(target&&UI.setFeedStatus)UI.setFeedStatus(target,true,true);}
-    function destroy(){if(transitionTimer){clearTimeout(transitionTimer);transitionTimer=null;}if(drawer)drawer.close();drawer=null;if(root)root.remove();root=null;outlet=null;previousRoute=null;previousPayload=null;}
+    function destroy(){if(transitionTimer){clearTimeout(transitionTimer);transitionTimer=null;}if(drawer)drawer.close();drawer=null;if(motion)motion.cancel();if(root)root.remove();root=null;outlet=null;previousRoute=null;previousPayload=null;}
     return { ensure, render, setLoading, updateTheme, updateChrome, setCollapsed, toggleSidebar, destroy, getRoot:()=>root };
   }
   return { createController };

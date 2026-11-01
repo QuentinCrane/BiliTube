@@ -11,10 +11,11 @@
   const NativeAdapter = window.BiliTubeNativeAdapter;
   const Extract = window.BiliTubeExtract;
   const Preview = window.BiliTubePreview;
+  const Motion = window.BiliTubeMotion;
   const Shell = window.BiliTubeShell;
   const Actions = window.BiliTubeActions;
   const Watch = window.BiliTubeWatch;
-  if (!Policy || !Theme || !Data || !ApiClient || !NativeVisibility || !NativeAdapter || !Extract || !Preview || !Shell || !Actions || !Watch) return;
+  if (!Policy || !Theme || !Data || !ApiClient || !NativeVisibility || !NativeAdapter || !Extract || !Preview || !Motion || !Shell || !Actions || !Watch) return;
   const T = (key, fallback, substitutions) => {
     const i18n = window.BiliTubeI18n;
     return i18n && typeof i18n.t === 'function' ? i18n.t(key, fallback, substitutions) : fallback;
@@ -66,7 +67,10 @@
   const feedTypes = new Set(['home','home-category','home-sections','search','dynamic','watchlater','favorites','space-profile','space-archives']);
 
   const themeReveal=Theme.createRevealController(document);
-  const shell = Shell.createController(document);
+  // The motion layer only decorates already-rendered DOM; preview state is read
+  // lazily because the preview controller is created a few lines below.
+  const motion=Motion.createController(document,{previewActive:()=>Boolean(preview&&preview.isActive&&preview.isActive())});
+  const shell = Shell.createController(document,{motion});
   const guard = NativeVisibility.createGuard(document);
   const watch = Watch.createDecorator(document);
   const nativeAdapter = NativeAdapter.createAdapter(document);
@@ -124,7 +128,7 @@
       nativeAdapter.updateTheme(theme);
       syncVisualStyleButtons();
     };
-    if (!animate) { themeReveal.cancel();commit(); return; }
+    if (!animate) { themeReveal.cancel();motion.cancel();commit(); return; }
     if (options.visualStyle) {
       html.classList.add('bt-style-switching');
       const finishStyleSwitch = () => html.classList.remove('bt-style-switching');
@@ -134,6 +138,8 @@
       return;
     }
     // startViewTransition keeps media intact while one snapshot fades out.
+    // Local card flips are cancelled first: one root View Transition per frame.
+    motion.cancel();
     Promise.resolve(themeReveal.run(commit,options.origin,true)).finally(()=>{if(preview.resume)preview.resume();});
   }
 
@@ -245,7 +251,7 @@
   function bindPreview(card,item,host) { if(settings.hoverPreview===false)return ()=>{}; return preview.bind(card,item,host); }
   function disconnectInfiniteObserver() { if (infiniteObserver) infiniteObserver.disconnect(); infiniteObserver = null; }
   function restoreNativePage() {
-    mountedHref='';themeReveal.cancel();
+    mountedHref='';themeReveal.cancel();motion.cancel();
     generation += 1;
     if (routeController) routeController.abort();
     routeController = null;
@@ -418,6 +424,7 @@
   function armInfiniteLoading() { queueMicrotask(setupInfiniteLoading); }
 
   async function requestApi(type, params={}) {
+    if(type==='subscriptions'&&settings.showSubscriptions===false)return;
     const requestGeneration = generation;
     const requestRevision = feedRevision;
     const watchLaterSeq = type==='watchlater'?++watchLaterReadSeq:0;
@@ -434,7 +441,7 @@
       : type;
     const seq=(apiSeq.get(key)||0)+1; apiSeq.set(key,seq);
     let payload;
-    try { payload=await ApiClient.request(type,params); } catch { payload=null; }
+    try { payload=await ApiClient.request(type,params,{signal:routeController&&routeController.signal}); } catch { payload=null; }
     if (requestGeneration!==generation || requestHref!==Policy.navigationIdentity(location) || apiSeq.get(key)!==seq || feedTypes.has(type)&&requestRevision!==feedRevision) return;
     if(type==='watchlater'&&watchLaterSeq!==watchLaterReadSeq)return;
     if(feedTypes.has(type)){
@@ -758,6 +765,11 @@
       if(changed.includes('hoverPreview')){
         if(settings.hoverPreview===false)preview.destroy();
         else {const root=shell.getRoot();if(root)for(const card of root.querySelectorAll('article'))if(card.__btCardItem&&card.__btPreviewHost)bindPreview(card,card.__btCardItem,card.__btPreviewHost);}
+      }
+      if(changed.includes('showSubscriptions')&&currentContext){
+        if(settings.showSubscriptions!==false)requestApi('subscriptions');
+        if(currentContext.strategy==='decorate')watch.updateChrome(chromeData());
+        else if(currentContext.strategy==='adapt')nativeAdapter.updateChrome(chromeData(),callbacks);
       }
       if(currentContext&&currentContext.strategy==='replace'&&shell.getRoot()){
         if(changed.includes('sidebarCollapsed'))shell.setCollapsed(settings.sidebarCollapsed);

@@ -5,6 +5,7 @@
   if (root) root.BiliTubeNativeAdapter = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createNativeAdapterModule(UI) {
   const HEADER_SELECTORS = ['.bili-header', '#biliMainHeader', '.mini-header', '.international-header', '.bili-header-v2'];
+  const HEADER_SELECTOR = HEADER_SELECTORS.join(',');
   function createAdapter(doc = document) {
     let layer = null;
     let drawer = null;
@@ -17,14 +18,21 @@
       hidden.set(node, node.getAttribute('style'));
       node.style.setProperty('display', 'none', 'important');
     }
-    function scan() { for (const selector of HEADER_SELECTORS) doc.querySelectorAll(selector).forEach(hideHeader); }
+    function scan() { doc.querySelectorAll(HEADER_SELECTOR).forEach(hideHeader); }
     function scanAdded(records) {
-      for (const record of records || []) for (const node of record.addedNodes || []) {
-        if (!node || node.nodeType !== 1) continue;
-        for (const selector of HEADER_SELECTORS) {
-          if (node.matches && node.matches(selector)) hideHeader(node);
-          if (node.querySelectorAll) node.querySelectorAll(selector).forEach(hideHeader);
+      const added=new Set();
+      for (const record of records || []) {
+        if(layer&&layer.contains(record.target))continue;
+        for (const node of record.addedNodes || []) {
+          if(node&&node.nodeType===1&&node.isConnected!==false&&node!==layer)added.add(node);
         }
+      }
+      for(const node of added){
+        let parent=node.parentElement;
+        while(parent&&!added.has(parent))parent=parent.parentElement;
+        if(parent)continue;
+        if(node.matches?.(HEADER_SELECTOR))hideHeader(node);
+        node.querySelectorAll?.(HEADER_SELECTOR).forEach(hideHeader);
       }
     }
     function createChrome(theme = 'light') {
@@ -53,14 +61,9 @@
       currentData = { ...currentData, ...data };
       currentCallbacks = callbacks || currentCallbacks;
       if (!layer) return;
-      const wasOpen = drawer && drawer.isOpen();
       const old = layer.querySelector('[data-role="header"]');
-      if (old) UI.updateTopbar(old, currentData, currentCallbacks);
-      else layer.prepend(UI.createTopbar(currentData, currentCallbacks));
-      if (drawer) drawer.backdrop.remove();
-      drawer = UI.createSidebarDrawer(currentData, currentCallbacks);
-      layer.append(drawer.backdrop);
-      if (wasOpen) drawer.toggle();
+      if (!old) layer.prepend(UI.createTopbar(currentData, currentCallbacks));
+      UI.updateChrome(layer,currentData,currentCallbacks);
     }
     function toggleSidebar() { if (drawer) drawer.toggle(); }
     function closeSidebar() { if (drawer) drawer.close(); }

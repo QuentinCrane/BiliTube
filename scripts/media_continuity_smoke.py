@@ -130,6 +130,11 @@ def main():
         assert page.evaluate('window.__revealRecords.length') == count
         report["checks"].append("the extension's motion-off setting skips the snapshot even when the OS permits motion")
 
+        page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'))")
+        assert page.evaluate("window.__video.paused&&!window.__video.hasAttribute('src')&&!document.querySelector('.bt-preview-video')")
+        page.evaluate("delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))")
+        report["checks"].append("hidden tabs release preview video and network source")
+
         go('https://space.bilibili.com/123/upload')
         expect(page.locator('.bt-video-card')).to_have_count(42)
         page.evaluate("window.__image=document.querySelector('.bt-thumb-image');window.__deliverProfile()")
