@@ -12,7 +12,9 @@
 - 动效统一由一个决策点控制：`motionMode=none`、系统减少动态效果、正在播放的 Hover Preview、超过 24 张可见卡片或主题 View Transition 进行中，都会跳过动画并直接呈现最终布局。
 - 主题 Reveal 仍然独占唯一一次根 View Transition；开始前主动取消局部 FLIP 并清理 transform，局部动画失败时只是失去过渡，内容与交互不受影响。
 - 修正路由进入动画的类名不一致（`is-route-entering` 与样式里的 `bt-route-entering`），此前该动画实际从未触发。
-- 界面精修：分类与筛选 chips 改为胶囊形，顶栏品牌与搜索框统一投影和聚焦环，卡片封面上加描边与悬停阴影、时长改为等宽数字胶囊，标题与作者行距收紧，侧栏分组标题降为说明层级，工具条改为细分隔行，收藏夹目录、空状态、骨架屏和对话框统一圆角与层级。
+- 视觉层回到 YouTube Desktop 基线：撤回上一轮引入的胶囊 chips、渐变品牌标、封面描边与悬停抬升、更小的标题/头像尺寸、13px 侧栏分组标题等改动，恢复 12px 媒体圆角、8px 矩形 chips、36px 头像、16px 侧栏分组标题与原始卡片排版。
+- 保留两处真正的修正：骨架屏头像占位补上 36px 尺寸（此前高度为 0，加载态与真实卡片不对齐），收藏夹选中项的计数文字跟随选中色以提高可读性。
+- `regression-0110-youtube-parity` 增加基线锁定断言：`--bt-media-radius` 只允许声明一次且为 12px、卡片头像 36px、chips 8px 且不得出现胶囊圆角，避免后续「美化」再次悄悄改变版式基线。
 - 新增 `scripts/motion_smoke.py`（无头 Chromium 数值断言）与 `scripts/ui_preview.py`（离线截图与手动演示），并补充 `tests/motion.test.js`，覆盖策略矩阵、FLIP 数值、取消清理、追加淡入和无 WAAPI 降级。
 
 ## 0.12.5

@@ -126,3 +126,16 @@ test('watch-later state synchronizes every matching card button after one toggle
   assert.match(app, /querySelectorAll\('\.bt-watchlater-quick/);
   assert.match(app, /syncWatchLaterButtons\(item,next\)/);
 });
+
+test('the desktop baseline is declared once and never overridden by a restyle pass', () => {
+  const css = read('src/styles/core.css');
+  // A later :root block that redeclares these tokens silently moves the whole
+  // layout away from the YouTube baseline while the tests above still pass.
+  assert.deepEqual([...css.matchAll(/--bt-media-radius\s*:\s*([^;}]+)/g)].map(match => match[1].trim()), ['12px']);
+  assert.match(css, /\.bt-card-avatar\{[^}]*width:36px/s);
+  assert.match(css, /\.bt-chip\{[^}]*border-radius:8px/s);
+  // Chips stay 8px rectangles; a pill radius would be a different design system.
+  for (const block of css.match(/\.[^{}]*bt-chip[^{}]*\{[^}]*\}/g) || []) {
+    assert.doesNotMatch(block, /border-radius:\s*999px/, block.slice(0, 48));
+  }
+});
