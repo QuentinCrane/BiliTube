@@ -705,7 +705,7 @@
         return;
       }
       watch.destroy();
-      const root=shell.ensure(chromeData(),callbacks);guard.hide(root);shell.setCollapsed(settings.sidebarCollapsed);shell.updateChrome(chromeData());shell.updateTheme(theme);renderReplace(currentContext);requestApi('account');
+      const root=shell.ensure(chromeData(),callbacks);guard.hide(root);shell.setCollapsed(settings.sidebarCollapsed,{instant:true});shell.updateChrome(chromeData());shell.updateTheme(theme);renderReplace(currentContext);requestApi('account');
       if(myGeneration===generation)document.documentElement.classList.add('bilitube-core-preflight');
       post('state');
     } catch(error) { restoreNativePage(); console.warn('[BiliTube] Core mount failed; restored native Bilibili.',error); }

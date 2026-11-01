@@ -139,3 +139,18 @@ test('the desktop baseline is declared once and never overridden by a restyle pa
     assert.doesNotMatch(block, /border-radius:\s*999px/, block.slice(0, 48));
   }
 });
+
+test('the guide expands by animating its track instead of snapping', () => {
+  const css = read('src/styles/core.css');
+  // The track and the guide element move together, so the content column slides.
+  assert.match(css, /\.bt-body\{transition:grid-template-columns \.2s/s);
+  assert.match(css, /\.bt-sidebar\{transition:width \.2s/s);
+  assert.match(css, /\.bt-sidebar-drawer\{transition:transform \.2s/s);
+  // A style-switch opacity fade must never take over those shorthands again;
+  // that is what silently disabled the collapse animation.
+  assert.doesNotMatch(css, /:is\(\.bt-topbar,\.bt-sidebar,\.bt-sidebar-drawer,\.bt-chip-row\)\{transition:opacity/);
+  // Restoring a saved collapsed state on mount stays instant instead of
+  // playing the collapse on every page load.
+  assert.match(css, /\.bt-root\.is-layout-instant/);
+  assert.match(read('src/core/app.js'), /shell\.setCollapsed\(settings\.sidebarCollapsed,\{instant:true\}\)/);
+});

@@ -77,7 +77,20 @@
     }
     function updateTheme(theme){if(root)root.dataset.btTheme=theme;doc.documentElement.dataset.btTheme=theme;}
     function updateChrome(data){chromeData={...chromeData,...data};if(root)UI.updateChrome(root,chromeData,callbacks||{});if(drawer)UI.updateChrome(drawer.backdrop,chromeData,callbacks||{});}
-    function setCollapsed(value){const side=root&&root.querySelector('[data-role="sidebar"]');if(side)side.classList.toggle('is-collapsed',Boolean(value));}
+    // `instant` is for restoring a saved state on mount: animating that first
+    // application would flash a collapsing guide on every page load.
+    function setCollapsed(value,options={}){
+      const side=root&&root.querySelector('[data-role="sidebar"]');
+      if(!side)return;
+      if(options.instant){
+        root.classList.add('is-layout-instant');
+        side.classList.toggle('is-collapsed',Boolean(value));
+        const release=()=>{if(root)root.classList.remove('is-layout-instant');};
+        if(doc.defaultView&&typeof doc.defaultView.requestAnimationFrame==='function')doc.defaultView.requestAnimationFrame(release);else release();
+        return;
+      }
+      side.classList.toggle('is-collapsed',Boolean(value));
+    }
     function toggleSidebar(){
       if(root&&doc.defaultView&&doc.defaultView.matchMedia('(max-width:1120px)').matches){
         if(!drawer){drawer=UI.createSidebarDrawer(chromeData,callbacks||{});root.append(drawer.backdrop);}

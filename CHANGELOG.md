@@ -13,6 +13,7 @@
 - 主题 Reveal 仍然独占唯一一次根 View Transition；开始前主动取消局部 FLIP 并清理 transform，局部动画失败时只是失去过渡，内容与交互不受影响。
 - 修正路由进入动画的类名不一致（`is-route-entering` 与样式里的 `bt-route-entering`），此前该动画实际从未触发。
 - 视觉层回到 YouTube Desktop 基线：撤回上一轮引入的胶囊 chips、渐变品牌标、封面描边与悬停抬升、更小的标题/头像尺寸、13px 侧栏分组标题等改动，恢复 12px 媒体圆角、8px 矩形 chips、36px 头像、16px 侧栏分组标题与原始卡片排版。
+- 修复侧边栏展开/收起没有动画：一条用于「视觉风格切换」的 `transition:opacity` 规则覆盖了 `.bt-sidebar` 的宽度过渡与抽屉的位移动画。现在侧栏宽度、`.bt-body` 的 grid 轨道和抽屉 `transform` 一起以 200ms 过渡，内容列跟随侧栏滑动而不是跳变；首屏恢复上次的折叠状态仍为瞬时，不会播放一次折叠动画。
 - 保留两处真正的修正：骨架屏头像占位补上 36px 尺寸（此前高度为 0，加载态与真实卡片不对齐），收藏夹选中项的计数文字跟随选中色以提高可读性。
 - `regression-0110-youtube-parity` 增加基线锁定断言：`--bt-media-radius` 只允许声明一次且为 12px、卡片头像 36px、chips 8px 且不得出现胶囊圆角，避免后续「美化」再次悄悄改变版式基线。
 - 新增 `scripts/motion_smoke.py`（无头 Chromium 数值断言）与 `scripts/ui_preview.py`（离线截图与手动演示），并补充 `tests/motion.test.js`，覆盖策略矩阵、FLIP 数值、取消清理、追加淡入和无 WAAPI 降级。

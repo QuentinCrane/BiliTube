@@ -198,7 +198,15 @@ html.bt-native-adapted :is(.space-left,.space-right){border-color:var(--bt-borde
 .bt-style-button[aria-pressed="true"]{color:var(--bt-accent-strong);background:var(--bt-accent-soft)}
 html.bt-glass-mode .bt-sidebar,html.bt-glass-mode .bt-sidebar-drawer{background:color-mix(in srgb,var(--bt-bg) 86%,transparent);backdrop-filter:none;box-shadow:inset -1px 0 color-mix(in srgb,var(--bt-surface) 30%,transparent)}
 html.bt-glass-mode .bt-video-card .bt-card-row{position:relative;z-index:2;margin:0;padding:12px 0 0;border:0;border-radius:0;background:transparent;box-shadow:none}
- :is(.bt-topbar,.bt-sidebar,.bt-sidebar-drawer,.bt-chip-row){transition:opacity .12s var(--bt-ease)}html.bt-style-switching :is(.bt-topbar,.bt-sidebar,.bt-sidebar-drawer,.bt-chip-row){opacity:.72;will-change:opacity}
+ :is(.bt-topbar,.bt-chip-row){transition:opacity .12s var(--bt-ease)}
+/* These two own geometry transitions, so they must list opacity next to their
+   own property instead of letting a style-switch fade reset the shorthand. */
+.bt-sidebar{transition:width .2s var(--bt-ease),opacity .12s var(--bt-ease)}
+.bt-sidebar-drawer{transition:transform .2s var(--bt-ease),opacity .12s var(--bt-ease)}
+/* Animate the guide track as well, so the content column slides with the guide
+   instead of jumping while only the inner element narrows. */
+.bt-body{transition:grid-template-columns .2s var(--bt-ease)}
+html.bt-style-switching :is(.bt-topbar,.bt-sidebar,.bt-sidebar-drawer,.bt-chip-row){opacity:.72;will-change:opacity}
 html.bt-density-compact .bt-main{padding-top:10px;padding-bottom:48px}html.bt-density-compact .bt-video-grid{gap:20px 12px}html.bt-density-compact .bt-card-row{padding-top:8px}html.bt-density-compact .bt-home-shelf{margin:22px 0 26px;padding-top:16px}html.bt-density-compact .bt-sidebar:not(.is-collapsed) .bt-nav-item{min-height:36px}
 html[data-bt-motion="subtle"] :is(.bt-root,#bilitube-watch-layer,#bilitube-native-layer) *{transition-duration:.14s!important;animation-duration:.18s!important}html[data-bt-motion="none"] :is(.bt-root,#bilitube-watch-layer,#bilitube-native-layer) *{transition:none!important;animation:none!important}
 .bt-nav-item{position:relative}.bt-nav-item.is-active{background:var(--bt-accent-soft);color:var(--bt-accent-strong);font-weight:600}.bt-nav-item.is-active::before{content:"";position:absolute;left:4px;top:9px;bottom:9px;width:3px;border-radius:4px;background:var(--bt-accent);box-shadow:none}.bt-sidebar.is-collapsed .bt-nav-item.is-active::before{left:50%;top:4px;right:auto;bottom:auto;width:20px;height:3px;transform:translateX(-50%)}
@@ -332,3 +340,5 @@ html.bt-glass-mode .bt-sidebar-drawer,html.bt-glass-mode .bt-sidebar.is-drawer{b
    redesign, not a fix, and belongs behind an explicit product decision. */
 .bt-skeleton-circle{width:36px;height:36px}
 .bt-favorite-folder.is-active span{color:inherit;opacity:.75}
+/* Restoring a saved guide state on mount must not animate. */
+.bt-root.is-layout-instant :is(.bt-body,.bt-sidebar,.bt-sidebar-drawer){transition:none!important}
