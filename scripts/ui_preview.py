@@ -167,6 +167,7 @@ const startDemo = () => {
     list = list.map((item, index) => index === 0 ? {...item, title: item.title + '（已更新）'} : item);
     draw();
   });
+  button('折叠侧栏', () => { shell.toggleSidebar(); });
   button('切换主题', () => {
     const next = document.documentElement.dataset.btTheme === 'dark' ? 'light' : 'dark';
     motion.cancel();
