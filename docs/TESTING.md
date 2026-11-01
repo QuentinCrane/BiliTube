@@ -38,6 +38,9 @@ git diff --check
 # 同路由 FLIP、分页追加、动效开关和主题互斥的数值断言
 python scripts/motion_smoke.py
 
+# 图片字节、预览查询字节和 500 张卡片的挂载基线
+python scripts/resource_audit.py --runs 3
+
 # 生成首页、搜索、收藏、动态、稍后再看、频道、骨架屏的深浅色截图
 python scripts/ui_preview.py --tag after
 python scripts/ui_preview.py --tag after-dark --theme dark

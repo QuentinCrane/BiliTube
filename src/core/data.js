@@ -108,6 +108,9 @@
         kind: 'video', bvid, title, category, categoryKey,
         href: `https://www.bilibili.com/video/${bvid}`,
         thumbnail: mediaUrl(item.pic),
+        // Feed payloads already carry the first page id; the Hover Preview uses
+        // it to skip a lookup round trip before it can request the stream.
+        cid: Number(item.cid || raw && raw.cid) || 0,
         duration: formatDuration(item.duration || item.duraion),
         author: String(owner.name || '').trim(),
         authorMid: owner.mid ? String(owner.mid) : '',

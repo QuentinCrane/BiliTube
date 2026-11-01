@@ -126,7 +126,10 @@
         if (active !== session) return;
         const known = cached.get(id);
         if (known && known.expiresAt > Date.now()) { cached.delete(id); cached.set(id,known); mountMedia(session, known.url); }
-        else requestMedia(id);
+        else {
+          const cid = Number(card && card.__btCardItem && card.__btCardItem.cid) || 0;
+          requestMedia(id, cid);
+        }
       }, Math.max(0, Math.min(2000, Number(getDelay()) || 500)));
     }
 
@@ -167,11 +170,18 @@
     }
 
     function resolve(id, url) {
+      const key = String(id);
       if (url) {
-        cached.delete(String(id));cached.set(String(id), {url,expiresAt:Date.now()+120000});
-        while(cached.size>64)cached.delete(cached.keys().next().value);
+        // 150 s stays inside the shortest upstream TTL (playurl, 180 s) so a
+        // re-hover never trusts a URL the service worker already dropped.
+        cached.delete(key);cached.set(key, {url,expiresAt:Date.now()+150000});
+      } else {
+        // Remember "no preview for this video" briefly. Without it every hover
+        // would re-run the two-request lookup for the same dead id.
+        cached.delete(key);cached.set(key, {url:'',expiresAt:Date.now()+30000});
       }
-      if (active && active.id === String(id) && !active.timer && !active.video && url) mountMedia(active, url);
+      while(cached.size>64)cached.delete(cached.keys().next().value);
+      if (active && active.id === key && !active.timer && !active.video && url) mountMedia(active, url);
     }
 
     function destroy() {

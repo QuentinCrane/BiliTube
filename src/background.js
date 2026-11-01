@@ -356,9 +356,18 @@ async function handle(type, params = {}) {
   if (type === 'preview') {
     const bvid = validBvid(params.bvid);
     if (!bvid) return { bvid, url:'' };
-    const view = await cached(`preview-view:${bvid}`, 300000, () => json(`https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`));
-    const info = view && view.code === 0 ? view.data || {} : {};
-    const cid = info.cid || (Array.isArray(info.pages) && info.pages[0] && info.pages[0].cid);
+    let cid = Number(params.cid) || 0;
+    if (!cid) {
+      // `pagelist` returns the same first-page cid as `view` for a fraction of
+      // the payload; `view` stays as the fallback for videos without pages.
+      const pages = await cached(`preview-pages:${bvid}`, 300000, () => json(`https://api.bilibili.com/x/player/pagelist?bvid=${encodeURIComponent(bvid)}`));
+      cid = Array.isArray(pages && pages.data) && pages.data[0] && Number(pages.data[0].cid) || 0;
+      if (!cid) {
+        const view = await cached(`preview-view:${bvid}`, 300000, () => json(`https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`));
+        const info = view && view.code === 0 ? view.data || {} : {};
+        cid = Number(info.cid) || Number(Array.isArray(info.pages) && info.pages[0] && info.pages[0].cid) || 0;
+      }
+    }
     if (!cid) return { bvid, url:'' };
     const q = `bvid=${encodeURIComponent(bvid)}&cid=${encodeURIComponent(cid)}&qn=32&fnval=0&fnver=0&fourk=0&platform=html5&high_quality=1`;
     const play = await cached(`preview-play:${bvid}:${cid}`, 180000, () => json(`https://api.bilibili.com/x/player/playurl?${q}`));

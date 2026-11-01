@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 性能：视频封面与 UP 主头像改为按实际显示尺寸向图床请求 `@Ww_Hh_1c.webp` 变体（失败自动回退原图）。实测封面 42.3 KB → 11.1 KB、头像 83.1 KB → 2.9 KB，一屏 12 张卡片的图片体积约降到原来的 1/9。
+- 性能：Hover Preview 取流不再固定先查 `view`。首页/热门/分类的列表项本身带 `cid`，现在直接带到后台，少一次往返；其它列表改用体积约为 `view` 1/3 的 `pagelist`，`view` 仅在最后兜底。
+- 性能：无预览流的 BV 结果缓存 30 s，避免反复为同一个视频重试两次请求；预览 URL 缓存对齐到 150 s，不超过后台 `playurl` 的 180 s TTL。
+- 新增 `scripts/resource_audit.py`：可复现地测量图片字节、预览查询字节和 500 张卡片的挂载/节点/堆基线；`tests/resource-budget.test.js` 固化上述契约。
+- 试验并按实测结果放弃：按列表长度额外启用 `content-visibility` 在无头 Chromium 中没有可复现收益，未纳入仓库。
 - 新增 `src/core/motion.js`：同一路由的数据刷新在 `Reconcile.update()` 前后测量可见卡片矩形，用 Web Animations API 做 additive FLIP，卡片、图片和 Hover Preview 节点全程复用，不重建媒体。
 - 分页追加只让新卡片淡入，旧卡片不再重复进场；换路由时只为工具条、分类和标题这类轻量 chrome 播放短暂进入动画，避免为整屏列表创建超高的合成层。
 - 动效统一由一个决策点控制：`motionMode=none`、系统减少动态效果、正在播放的 Hover Preview、超过 24 张可见卡片或主题 View Transition 进行中，都会跳过动画并直接呈现最终布局。

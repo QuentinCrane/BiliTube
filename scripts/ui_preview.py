@@ -246,6 +246,10 @@ const probe = async () => {
   draw(list);
   await settle();
   motion.cancel(); // the reorder above must not leak into this frame
+  // Appended cards only animate when they land inside the viewport, exactly like
+  // a real "load more" at the bottom of a scrolled feed.
+  scrollTo(0, document.body.scrollHeight);
+  await sleep(120);
   const beforeCount = document.querySelectorAll('.bt-video-card').length;
   draw([...list, ...cards.slice(12, 16)], {append: true});
   results.append = {
@@ -290,7 +294,7 @@ window.addEventListener('unhandledrejection', function (event) {
 });</script>"""
 
 
-def build_page(source: Path, target: Path) -> None:
+def build_page(source: Path, target: Path, body_script: str | None = None) -> None:
     modules = [f'src/core/{name}.js' for name in MODULES if (source / f'src/core/{name}.js').exists()]
     scripts = '\n'.join(
         f'<script src="{Path(os.path.relpath(source / m, target.parent)).as_posix()}"></script>' for m in modules
@@ -309,7 +313,7 @@ def build_page(source: Path, target: Path) -> None:
 <body>
 {ERROR_PROBE}
 {scripts}
-<script>{FIXTURE}</script>
+<script>{body_script or FIXTURE}</script>
 </body>
 </html>
 """

@@ -76,8 +76,10 @@
   const nativeAdapter = NativeAdapter.createAdapter(document);
   let preview;
   preview = Preview.createController({
-    requestMedia: async (bvid) => {
-      const result = await ApiClient.request('preview', { bvid });
+    requestMedia: async (bvid, cid) => {
+      // A feed card already knows the first page id; sending it removes one
+      // round trip from the hover-to-first-frame path.
+      const result = await ApiClient.request('preview', cid ? { bvid, cid } : { bvid });
       preview.resolve(bvid, result && result.url || '');
     },
     getDelay: () => settings.hoverPreviewDelay,

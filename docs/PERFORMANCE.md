@@ -61,3 +61,59 @@ python scripts/watch_navigation_probe.py --clicks 2
 性能探针依赖 Python Playwright，默认使用本机 Edge；可通过 `--browser` 指定 Chromium 可执行文件。比较旧源码时，使用 `--source-dir <源码快照目录> --measure-only --output <结果路径>`；该模式记录旧版本的行为缺陷，默认模式则对行为和确定性的工作量检查失败报错。进行时间对比时应依次运行，关闭其他性能探针。
 
 本次本地原始数据位于 `output/performance-audit/baseline-final.json`、`output/performance-audit/optimized-final.json`。公开页面结果位于 `output/performance-watch-navigation-final/report.json` 和 `output/performance-watch-startup/report.json`。`output/` 为忽略目录，不随源码发布。
+
+## 资源分配与视频加载（2026-11-01）
+
+这一轮只动三类开销：**图片请求字节数**、**Hover Preview 取流的额外往返**、**预览结果的重复查询**。所有数字由 `python scripts/resource_audit.py` 复现。
+
+### 缩略图与头像按实际显示尺寸取图
+
+卡片封面槽位最宽约 320 CSS px，此前直接请求 API 返回的原图（1000×625 甚至更大）。现在由 `ui.js::sizedImage()` 追加 Bilibili 图床的 `@Ww_Hh_1c.webp` 变体，头像同理；失败一次会回退到原 URL，不会因为 CDN 拒绝变体而丢图。
+
+| 资源 | 原图 | 变体 | 变化 |
+| --- | ---: | ---: | ---: |
+| 封面样本 1 | 42,267 B / 1000×625 | 11,086 B / 672×378 | 字节 −73.8%，像素 −59.3% |
+| 封面样本 2 | 80,325 B / 1692×952 | 9,158 B / 672×378 | 字节 −88.6%，像素 −84.2% |
+| 封面样本 3 | 150,842 B / 1668×938 | 23,046 B / 672×378 | 字节 −84.7%，像素 −83.8% |
+| UP 主头像 | 83,086 B / 694×694 | 2,874 B / 96×96 | 字节 −96.5%，像素 −98.1% |
+
+按这三个封面样本的均值，单张封面 91.1 KB → 14.4 KB。一屏 12 张互不重复的卡片（封面 + 头像）约 2.1 MB → 0.21 MB；同一批图片如果都保持在解码缓存里，位图从约 50 MB 量级降到约 12 MB。变体可用性已用真实浏览器与 CDN 双向校验：三个封面与一个头像都返回 `200 image/webp`，`naturalWidth/naturalHeight` 正好是请求的 672×378 与 96×96；带旧 `@` 修饰符、带查询串、`bfs/face/` 目录三种形式都正常。
+
+### Hover Preview 少一次往返
+
+旧实现先 `x/web-interface/view` 取 `cid`，再 `x/player/playurl` 取流地址。现在：
+
+1. 首页 / 热门 / 分类的列表项本身就带 `cid`（`data.js` 保留该字段），预览直接带 `cid` 请求，**一次往返**即可拿到流地址。
+2. 列表没有 `cid` 时（搜索、动态等）改用 `x/player/pagelist`，响应体约为 `view` 的 1/3，`view` 仅作为最后兜底。
+3. 同一个 BV 的空结果（无预览流）缓存 30 s，URL 结果缓存 150 s（不超过 service worker 里 `playurl` 的 180 s TTL）。
+
+| 项目 | 数值 |
+| --- | --- |
+| 6 个样本的 `view` 响应合计 | 969,460 B（单条最大 105 KB） |
+| 同 6 个样本的 `pagelist` 合计 | 2,550 B（−99.7%） |
+| 带 `cid` 时的取流查询 | 0 字节（只剩 `playurl`） |
+
+### 试过但没有上线的优化
+
+`content-visibility:auto` 的另一套「按列表长度启用」规则：在无头 Chromium 中 500 张卡片的挂载与首次布局没有可重复收益（5 次采样：134.5 ms 对 123.1 ms，且 `checkVisibility({contentVisibilityAuto:true})` 显示没有任何卡片被跳过），因此没有加入仓库；既有的 feed 级规则保持不变。这项优化的代价是滚动条稳定性与页内查找可用性，缺少真实浏览器证据时不应扩大范围。
+
+### 回归基线（500 张卡片，无头 Chromium）
+
+| 指标 | 中位数 |
+| --- | ---: |
+| `shell.ensure + render` 同步耗时 | 15–17 ms |
+| 首次强制布局 | 112–115 ms |
+| `#bilitube-outlet` 节点数 | 8,016 |
+| JS 堆 | 10 MB |
+
+这三项作为回归守卫：节点数和挂载耗时不应随改动上升。布局毫秒数在无头环境下波动较大，只用于发现数量级回退。
+
+### 复测
+
+```sh
+python scripts/resource_audit.py --runs 3
+node --test tests/resource-budget.test.js
+node --test tests/*.test.js
+```
+
+该脚本不依赖 Playwright：图片与接口部分直接向真实 CDN / API 发请求（离线时自动跳过），布局部分用本机 Chrome/Edge 无头模式运行。登录态下的播放与预览起播时间仍需人工按 `docs/TESTING.md` 验收。
