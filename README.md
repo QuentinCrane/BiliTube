@@ -4,18 +4,42 @@
 
 <h1 align="center">BiliTube</h1>
 
-<p align="center">Bilibili 桌面端界面扩展</p>
+<p align="center">给 B 站网页版加上 YouTube 式布局</p>
+
+<p align="center"><sub>A Chrome / Edge extension that adds a YouTube Desktop-style layout to Bilibili.</sub></p>
 
 <p align="center">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Chromium%20%2F%20Edge-4285F4?logo=googlechrome&logoColor=white">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Chromium%20%2F%20Edge-4285F4?logo=googlechrome\&logoColor=white">
   <img alt="Manifest V3" src="https://img.shields.io/badge/Manifest-V3-34A853">
-  <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES2022-F7DF1E?logo=javascript&logoColor=111827">
+  <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES2022-F7DF1E?logo=javascript\&logoColor=111827">
   <img alt="License" src="https://img.shields.io/github/license/QuentinCrane/BiliTube?color=blue">
 </p>
 
-BiliTube 是一个面向 Chromium 和 Edge 的 Manifest V3 浏览器扩展。项目提供统一的桌面导航、内容布局、主题和页面层级，用于改善 Bilibili 在大屏设备上的浏览体验。播放器、评论、互动工具栏和其他复杂业务仍由 Bilibili 原生页面负责。
+如果你平时用 YouTube 更多，切回 B 站网页版会不太顺手：首页是一条居中的窄栏，窗口拉宽以后两侧全空着；视频页的简介、评论和相关推荐都挤在播放器下面，得一路往下滚。
 
-当前源码版本：`0.12.5`。项目不依赖 npm 或 bundler，仓库目录本身就是可加载的未打包扩展。
+BiliTube 在 B 站网页版外面加一层 YouTube Desktop 式的界面：左侧常驻导航、跟着窗口宽度铺开的推荐网格、视频页双栏（播放器在左，信息栏在右），以及缩略图的悬停预览。首页、搜索、动态、频道这些外层页面都按同一套几何重排。
+
+当前源码版本：`0.12.5`。不依赖 npm 或 bundler，仓库目录本身就是可加载的未打包扩展。
+
+## 装上之后
+
+截图是在宽屏窗口下实际渲染的，用来说明页面结构，不代表固定的推荐内容或接口返回值。
+
+<p align="center">
+  <img src="docs/screenshots/home.png" width="480" alt="BiliTube 首页">
+  <img src="docs/screenshots/watch.png" width="480" alt="BiliTube 视频播放页">
+</p>
+
+<p align="center"><sub>首页：左侧常驻导航，推荐流按窗口宽度铺成多列　·　视频页：播放器与右侧信息栏并排</sub></p>
+
+<p align="center">
+  <img src="docs/screenshots/dynamic.png" width="480" alt="BiliTube 动态页">
+  <img src="docs/screenshots/search.png" width="480" alt="BiliTube 搜索页">
+</p>
+
+<p align="center"><sub>动态：订阅时间线　·　搜索：结果网格与筛选栏</sub></p>
+
+截图素材和隐私处理规则见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。
 
 ## 功能范围
 
@@ -31,23 +55,29 @@ BiliTube 是一个面向 Chromium 和 Edge 的 Manifest V3 浏览器扩展。项
 
 完整功能对应、分页策略与缓存上限见 [`docs/FEATURE_COVERAGE.md`](docs/FEATURE_COVERAGE.md)。
 
-### 页面职责边界
+## 适合谁
 
-| 页面或能力 | BiliTube | Bilibili |
-| --- | --- | --- |
-| 首页、搜索、动态、频道、历史、稍后再看、收藏夹 | 外层 Shell、导航、卡片布局、分页状态和视觉层 | 内容数据与业务接口 |
-| 普通视频页 | Header、侧栏、双栏几何和有限样式适配 | 播放器、播放控制、简介、评论、相关推荐和互动工具栏 |
-| 点赞、投币、收藏、分享、三连 | 不代理、不合成事件 | 原生按钮、弹窗和状态 |
-| 普通链接 | 生成真实 `href`，保留左键、中键和 Ctrl/Command 点击行为 | 浏览器导航与 Bilibili 路由 |
+- 主要用 YouTube，B 站只是偶尔看，不习惯首页那条居中窄栏——窗口越宽，两边空得越多。
+- 想要深色主题和悬停预览这类桌面端才有的浏览手感。
 
-这种边界用于保留 Bilibili 的登录态和原生业务能力，也降低站点 DOM 或接口变化对扩展的影响。需要查看完整路由和 Native-first 约束时，请参阅 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) 和 [`docs/TECHNICAL_OVERVIEW.md`](docs/TECHNICAL_OVERVIEW.md)。
+反过来说，如果你想要的是一个独立桌面客户端，或者希望扩展接管播放器、弹幕、评论这类原生业务，BiliTube 不在这个范围内。
+
+## 与 B 站原站的分工
+
+扩展只重画外层。首页、搜索、动态、频道、历史、稍后再看和收藏夹的 Shell、导航、卡片布局和分页状态由 BiliTube 负责；视频页只调整 Header、侧栏和双栏几何。
+
+播放器、播放控制、简介、评论、相关推荐、点赞投币分享这些仍由 B 站原生页面处理，扩展不代理请求、不合成点击事件。这种做法保留了登录态和原生业务能力，也让站点 DOM 或接口变化对扩展的影响小一些。
+
+完整的页面能力对照见 [`docs/TECHNICAL_OVERVIEW.md`](docs/TECHNICAL_OVERVIEW.md)，路由策略和 Native-first 约束见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
 
 ## 安装
 
-1. 下载仓库 ZIP，或执行 `git clone https://github.com/QuentinCrane/BiliTube.git`。
+BiliTube 是加载解压扩展，不需要构建步骤。
+
+1. 拿到扩展目录：到 [Releases](https://github.com/QuentinCrane/BiliTube/releases) 下载打包好的 zip 并解压，或执行 `git clone https://github.com/QuentinCrane/BiliTube.git`。
 2. 打开 Chrome 或 Edge 的扩展管理页：`chrome://extensions` 或 `edge://extensions`。
 3. 开启“开发者模式”，选择“加载已解压的扩展”。
-4. 选择包含 `manifest.json` 的仓库根目录，不要选择 `src` 或 `assets` 子目录。
+4. 选择包含 `manifest.json` 的目录，不要选择 `src` 或 `assets` 子目录。
 5. 重新打开 Bilibili 标签页；更新源码或重新加载扩展后，也建议重新打开已有页面。
 6. 在扩展详情页打开“扩展选项”，按需调整界面和内容设置。
 
@@ -57,10 +87,20 @@ BiliTube 是一个面向 Chromium 和 Edge 的 Manifest V3 浏览器扩展。项
 
 扩展使用 Chromium 原生 `_locales` 机制，根据浏览器界面语言显示中文或英文：
 
-- `zh_CN`：默认语言，简体中文。
-- `en`：英文。
+- `zh_CN`：默认语言，简体中文；浏览器语言不匹配下表时也回落到这一份。
+- `en`：英文（English），覆盖设置页与 BiliTube 重绘的全部页面，界面文案不残留中文。
+
+两套语言包保持相同的键集和占位符；计数型文案在英文下使用单数形式（`1 video` / `2 videos`），数字缩写按界面语言格式化（中文 `1.2万` / `1.2亿`，英文 `12.3K` / `1.2M`）。来自 Bilibili 自身的内容（视频标题、UP 主名、原站按钮等）仍保持原站语言。
 
 语言设置由浏览器决定，不会额外保存账号或个人资料。修改浏览器语言后，重新加载扩展和设置页即可生效。
+
+## English
+
+BiliTube adds a YouTube Desktop-style layout on top of the Bilibili website in Chrome and Edge. You get a persistent left sidebar, a recommendation grid that follows the window width, a two-column watch page, and hover previews on thumbnails. Home, search, dynamics, channels, history, watch later and favorites are rearranged; the player, danmaku, comments and interaction buttons stay as Bilibili renders them.
+
+The repository root is already the unpacked extension, so there is no build step. Download the zip from [Releases](https://github.com/QuentinCrane/BiliTube/releases) or clone this repository, then open `chrome://extensions` or `edge://extensions`, enable developer mode, and load the repository root as an unpacked extension.
+
+The interface follows the browser language (`zh_CN` or `en`). The rest of this documentation is written in Chinese — [`docs/TECHNICAL_OVERVIEW.md`](docs/TECHNICAL_OVERVIEW.md) has the page capability map, and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) covers the runtime structure.
 
 ## 验证
 
@@ -73,22 +113,6 @@ git diff --check
 ```
 
 前两条命令分别运行 Node.js 回归测试和 Manifest/资源/语法/架构校验。真实 Chrome 或 Edge 页面中的登录态、点击、导航和视觉结果仍需按照 [`PAGE_AUDIT.md`](PAGE_AUDIT.md) 手动检查。
-
-## 截图
-
-截图用于说明页面结构，不代表固定的推荐内容或接口返回值。
-
-<p align="center">
-  <img src="docs/screenshots/home.png" width="480" alt="BiliTube 首页">
-  <img src="docs/screenshots/dynamic.png" width="480" alt="BiliTube 动态页">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/watch.png" width="480" alt="BiliTube 视频播放页">
-  <img src="docs/screenshots/search.png" width="480" alt="BiliTube 搜索页">
-</p>
-
-截图素材和隐私处理规则见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。
 
 ## 项目结构
 

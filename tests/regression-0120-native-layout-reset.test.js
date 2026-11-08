@@ -52,7 +52,8 @@ test('native BPX controls are only visually compacted toward YouTube geometry', 
   const css = read('src/styles/core.css');
   assert.match(css, /html\.bt-watch-decorated[^\n]*\.bpx-player-control-bottom/);
   assert.match(css, /\.bpx-player-control-bottom\{[^}]*min-height\s*:\s*48px/s);
-  assert.match(css, /\.bpx-player-ctrl-btn\{[^}]*min-width\s*:\s*40px[^}]*height\s*:\s*40px/s);
+  assert.match(css, /\.bpx-player-ctrl-btn\{[^}]*height\s*:\s*40px/s);
+  assert.match(css, /\.bpx-player-ctrl-btn:not\(\.bpx-player-ctrl-eplist\)\{[^}]*min-width\s*:\s*40px/s);
   assert.match(css, /\.bpx-player-progress[^\{]*\{[^}]*height\s*:\s*3px/s);
   assert.doesNotMatch(read('src/core/watch.js'), /\.click\(\)|dispatchEvent\s*\(/);
 });

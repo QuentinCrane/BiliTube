@@ -7,9 +7,9 @@
   const watch = (host === 'www.bilibili.com' || host === 'bilibili.com') && /^\/video\//.test(path);
 
   if (host === 'www.bilibili.com' || host === 'bilibili.com') {
-    replace = path === '/' || path === '' || /^\/dynamic(?:\/|$)/.test(path) || /^\/(?:history|account\/history)(?:\/|$)/.test(path) || /^\/watchlater(?:\/|$)/.test(path) || /^\/list\/watchlater(?:\/|$)/.test(path);
+    replace = path === '/' || path === '' || /^\/dynamic(?:\/|$)/.test(path) || /^\/watchlater(?:\/|$)/.test(path) || /^\/list\/watchlater(?:\/|$)/.test(path);
   } else if (host === 'search.bilibili.com') {
-    replace = /^\/(?:|all|video)\/?$/.test(path);
+    replace = /^\/(?:|all|video|upuser|bangumi|media_ft)\/?$/.test(path);
   } else if (host === 'space.bilibili.com') {
     const match = path.match(/^\/(\d+)(?:\/([^/?#]+))?\/?/);
     const sub = match ? String(match[2] || '').toLowerCase() : '';
@@ -32,7 +32,7 @@
       const systemDark = matchMedia('(prefers-color-scheme: dark)').matches;
       const theme = saved.theme === 'dark' ? 'dark' : saved.theme === 'light' ? 'light' : systemDark ? 'dark' : 'light';
       document.documentElement.dataset.btTheme = theme;
-      document.documentElement.classList.toggle('bt-glass-mode', saved.glassMode !== false);
+      document.documentElement.classList.toggle('bt-glass-mode', saved.glassMode === true);
       document.documentElement.classList.toggle('bt-hide-ads', saved.hideAds !== false);
     });
   } catch {}

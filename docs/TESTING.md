@@ -69,7 +69,7 @@ python scripts/ui_preview.py --tag after-dark --theme dark
 - 原生评论 Shadow DOM 不被访问或重建；
 - Watch 的宽屏、网页全屏、浏览器全屏和 mini-player 由 Bilibili 状态控制；
 - BiliTube 不合成原生点赞、投币、收藏、分享和评论事件；
-- 普通推荐链接使用原生 anchor 导航。
+- 推荐视频使用原生 anchor 导航；开启新标签页选项时阻止原站额外的同页跳转。
 
 ### Route and response races
 
@@ -104,6 +104,14 @@ python scripts/ui_preview.py --tag after-dark --theme dark
 
 ## Manual acceptance matrix
 
+### Native History layout
+
+```powershell
+python scripts/history_native_smoke.py
+```
+
+该脚本在临时、未登录的 Edge 配置中加载当前 Bilibili 历史页面和本地扩展，将历史读取、搜索和写入接口全部拦截为合成数据。它检查日期分组、单列卡片、滚动加载、搜索与筛选、原生视图切换、单条删除、批量选择、清空和暂停记录确认，以及深色和窄屏布局。此测试不访问或更改真实账号的历史记录，也不等同于登录态验收。
+
 ### Theme transition and Watch startup
 
 ```powershell
@@ -121,9 +129,13 @@ python scripts/watch_startup_probe.py --decorated-only --seconds 8
 python scripts/watch_navigation_probe.py --clicks 5
 ```
 
-在临时、未登录 Edge 配置中加载实际扩展，点击原生右侧推荐链接并记录每次切换的截图、播放器位置、媒体状态与 document timeOrigin，输出在 `output/watch-navigation/`。相同 timeOrigin 表示同页导航；检查要求完成指定次数且播放器保持在标题上方。实际媒体状态单独记录，网络失败或视频权限可能影响播放。
+在临时、未登录 Edge 配置中加载实际扩展，关闭推荐视频新标签页选项后点击原生右侧推荐链接，记录每次切换的截图、播放器位置、媒体状态与 document timeOrigin，输出在 `output/watch-navigation/`。相同 timeOrigin 表示同页导航；检查要求完成指定次数且播放器保持在标题上方。实际媒体状态单独记录，网络失败或视频权限可能影响播放。
 
 `watch_layout_smoke.py` 同时模拟原站清除播放器 class、将原生高度设为 0、替换外层容器和延迟插入评论；检查播放器位置、媒体节点身份、mini / wide / web 模式退出后的恢复以及销毁后监听释放。
+
+`python scripts/watch_controls_smoke.py` 使用离线播放器控件夹具检查桌面悬浮样式、点击命中、原生控件隐藏状态和播放器模式隔离。加上 `--live` 会在临时未登录的 Edge 配置中加载公开 Bilibili 视频和本地扩展，验证播放、音量、时间输入、清晰度菜单、设置开关及宽屏和网页全屏切换；结果不代表登录态验收。
+
+`python scripts/recommendation_navigation_smoke.py` 使用临时未登录配置检查实际扩展中的搜索焦点、新标签页设置保存和同步，以及首页与播放页推荐的鼠标和键盘导航。
 
 ### Refresh, failure recovery and responsive layout
 

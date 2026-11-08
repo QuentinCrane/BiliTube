@@ -54,91 +54,6 @@
 
 
 
-  const MOVED_REACT_BRIDGE_SELECTOR = '[data-bt-react-bridge="true"]';
-  const movedReactEvents = {
-    pointerdown:['onPointerDownCapture','onPointerDown'],
-    pointerup:['onPointerUpCapture','onPointerUp'],
-    pointermove:['onPointerMoveCapture','onPointerMove'],
-    pointerover:['onPointerEnterCapture','onPointerEnter'],
-    pointerout:['onPointerLeaveCapture','onPointerLeave'],
-    mousedown:['onMouseDownCapture','onMouseDown'],
-    mouseup:['onMouseUpCapture','onMouseUp'],
-    mousemove:['onMouseMoveCapture','onMouseMove'],
-    mouseover:['onMouseEnterCapture','onMouseEnter'],
-    mouseout:['onMouseLeaveCapture','onMouseLeave'],
-    click:['onClickCapture','onClick'],
-    dblclick:['onDoubleClickCapture','onDoubleClick'],
-    contextmenu:['onContextMenuCapture','onContextMenu'],
-    focusin:['onFocusCapture','onFocus'],
-    focusout:['onBlurCapture','onBlur'],
-  };
-
-  function getPageReactProps(element) {
-    if (!element || typeof element !== 'object') return null;
-    const key = Object.keys(element).find(name => name.startsWith('__reactProps$') || name.startsWith('__reactEventHandlers$'));
-    if (!key) return null;
-    const props = element[key];
-    return props && typeof props === 'object' ? props : null;
-  }
-
-  function movedReactEvent(nativeEvent, currentTarget, state) {
-    return new Proxy(nativeEvent, {
-      get(target, prop) {
-        if (prop === 'nativeEvent') return nativeEvent;
-        if (prop === 'currentTarget') return currentTarget;
-        if (prop === 'isPropagationStopped') return () => state.stopped;
-        if (prop === 'isDefaultPrevented') return () => nativeEvent.defaultPrevented;
-        if (prop === 'persist') return () => {};
-        if (prop === 'stopPropagation') return () => { state.stopped = true; nativeEvent.stopPropagation(); };
-        if (prop === 'preventDefault') return () => nativeEvent.preventDefault();
-        const value = Reflect.get(target, prop, target);
-        return typeof value === 'function' ? value.bind(target) : value;
-      },
-    });
-  }
-
-  function invokeMovedReactEvent(event, captureProp, bubbleProp) {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const boundary = target.closest(MOVED_REACT_BRIDGE_SELECTOR);
-    if (!boundary) return;
-    const composed = typeof event.composedPath === 'function' ? event.composedPath() : [];
-    const path = [];
-    if (composed.length) {
-      for (const node of composed) {
-        if (!(node instanceof Element)) continue;
-        if (!boundary.contains(node) && node !== boundary) continue;
-        path.push(node);
-        if (node === boundary) break;
-      }
-    } else {
-      let node = target;
-      while (node instanceof Element) {
-        path.push(node);
-        if (node === boundary) break;
-        node = node.parentElement;
-      }
-    }
-    if (!path.includes(boundary)) path.push(boundary);
-    const state = { stopped:false };
-    for (const node of [...path].reverse()) {
-      const handler = getPageReactProps(node)?.[captureProp];
-      if (typeof handler === 'function') handler(movedReactEvent(event,node,state));
-      if (state.stopped) return;
-    }
-    for (const node of path) {
-      const handler = getPageReactProps(node)?.[bubbleProp];
-      if (typeof handler === 'function') handler(movedReactEvent(event,node,state));
-      if (state.stopped) return;
-    }
-  }
-
-  function installMovedReactEventBridge() {
-    for (const [eventName,[captureProp,bubbleProp]] of Object.entries(movedReactEvents)) {
-      document.addEventListener(eventName, event => invokeMovedReactEvent(event,captureProp,bubbleProp));
-    }
-  }
-
   function observeSpaceArchive(rawUrl, payload) {
     try {
       const url = new URL(String(rawUrl || ''), location.href);
@@ -201,7 +116,11 @@
       const title=card.querySelector('h3,[title],.title'),name=String(title&&(title.getAttribute('title')||title.textContent)||link.getAttribute('title')||link.textContent||'').trim();
       if(!name)continue;
       const img=card.querySelector('img'),author=card.querySelector('a[href*="space.bilibili.com"]'),mid=author&&String(author.href).match(/space\.bilibili\.com\/(\d+)/),duration=card.querySelector('.duration,.bili-video-card__stats__duration');
-      cards.push({bvid:match[1],title:name,pic:img&&(img.currentSrc||img.src||img.getAttribute('data-src'))||'',author:author&&author.textContent.trim()||'',mid:mid&&mid[1]||'',duration:duration&&duration.textContent.trim()||''});seen.add(match[1]);
+      const authorText=author&&author.textContent.trim()||'',parts=authorText.split(/\s*[·•]\s*/),last=parts[parts.length-1]||'';
+      const date=parts.length>1&&/^(?:刚刚|昨天|前天|\d+\s*(?:秒|分钟|小时|天|周|个月|年)前|\d{1,4}[-/.年]\d{1,2}(?:[-/.月]\d{1,2}日?)?)$/.test(last)?parts.pop().trim():'';
+      const views=card.querySelector('.bili-video-card__stats--item,.so-icon.watch-num');
+      const count=views&&views.textContent.trim()||'',authorImage=author&&author.querySelector('img');
+      cards.push({bvid:match[1],title:name,pic:img&&(img.currentSrc||img.src||img.getAttribute('data-src'))||'',author:parts.join(' · ').trim(),upic:authorImage&&(authorImage.currentSrc||authorImage.src)||'',mid:mid&&mid[1]||'',duration:duration&&duration.textContent.trim()||'',viewText:count,publishedText:date});seen.add(match[1]);
       if(cards.length>=60)break;
     }
     if(!cards.length)return;
@@ -256,40 +175,21 @@
     const id = String(data.id || '');
     if (!id) return;
     const request = data.request || {};
-    const action = String(request.action || '');
     const csrf = String(request.csrf || '');
-    const bvid = String(request.bvid || '');
-    const aid = String(request.aid || '');
-    const mid = String(request.mid || '');
-    const form = new URLSearchParams();
-    const set = (key, value) => { if (value !== undefined && value !== null && value !== '') form.set(key, String(value)); };
-    let path = '';
-    if (action === 'like') {
-      path = '/x/web-interface/archive/like'; set('bvid',bvid); set('aid',aid); set('like',request.active ? 2 : 1);
-    } else if (action === 'triple') {
-      path = '/x/web-interface/archive/like/triple'; set('bvid',bvid); set('aid',aid);
-    } else if (action === 'coin') {
-      path = '/x/web-interface/coin/add'; set('bvid',bvid); set('aid',aid); set('multiply',request.multiply || 1); set('select_like',request.selectLike ? 1 : 0);
-    } else if (action === 'favorite') {
-      path = '/x/v3/fav/resource/deal'; set('rid',aid); set('type',2); set('add_media_ids',Array.isArray(request.addMediaIds)?request.addMediaIds.join(','):request.addMediaIds); set('del_media_ids',Array.isArray(request.delMediaIds)?request.delMediaIds.join(','):request.delMediaIds);
-    } else if (action === 'comment') {
-      path = '/x/v2/reply/add'; set('type',1); set('oid',aid); set('message',request.message || '');
-    } else if (action === 'follow') {
-      path = '/x/relation/modify'; set('fid',mid); set('act',request.following ? 2 : 1); set('re_src',11);
+    const mid = String(request.mid || '').replace(/\D/g, '');
+    if (request.action !== 'follow' || !mid || !csrf) {
+      post('write-result',{ id, result:{ code:-400, message:'' } });
+      return;
     }
-    set('csrf',csrf);
-    if (!path || !csrf) { post('write-result',{ id, result:{ code:-400, message:'无效的写入请求' } }); return; }
+    const form = new URLSearchParams({ fid:mid, act:request.following ? '2' : '1', re_src:'11', csrf });
     try {
-      const response = await fetch(`https://api.bilibili.com${path}`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json, text/plain, */*'}, body:form.toString() });
+      const response = await fetch('https://api.bilibili.com/x/relation/modify', {
+        method:'POST', credentials:'include',
+        headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json, text/plain, */*'},
+        body:form.toString(),
+      });
       const result = await response.json();
-      let view = null;
-      if (result && result.code === 0 && (bvid || aid) && action !== 'comment') {
-        try {
-          const query = bvid ? `bvid=${encodeURIComponent(bvid)}` : `aid=${encodeURIComponent(aid)}`;
-          view = await fetch(`https://api.bilibili.com/x/web-interface/view?${query}`, { credentials:'include' }).then(r=>r.json());
-        } catch {}
-      }
-      post('write-result',{ id, result:{ ...result, view } });
+      post('write-result',{ id, result });
     } catch (error) {
       post('write-result',{ id, result:{ code:-1, message:String(error && error.message || error) } });
     }
@@ -321,7 +221,6 @@
   }
 
   installNetworkObservation();
-  installMovedReactEventBridge();
   wrapHistory('pushState');
   wrapHistory('replaceState');
   addEventListener('popstate', emitNavigation);

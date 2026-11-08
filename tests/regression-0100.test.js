@@ -81,7 +81,7 @@ test('native Bilibili comments remain in place and BiliTube only marks their out
   assert.doesNotMatch(css, /\.bt-native-watch-comments\s+(?:bili-comment|#comment|\.reply)/);
 });
 
-test('watch does not rebuild recommendation anchors or intercept native recommendation navigation', () => {
+test('watch retains native recommendation anchors without synthetic navigation', () => {
   const watch = read('src/core/watch.js');
   assert.doesNotMatch(watch, /bindDirectLink|preventDefault\(|location\.assign|buildRelated|compactRelatedCard/);
   assert.match(watch, /bt-native-watch-related/);

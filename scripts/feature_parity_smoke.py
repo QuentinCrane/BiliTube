@@ -83,6 +83,12 @@ def main() -> None:
         assert page.locator(".bt-site-directory a").count() == 19
         native = page.locator(".bt-page-tools a").first.get_attribute("href")
         assert "order=click" in native and "duration=2" in native and "bilitube_native=1" in native
+        menu=page.locator('.bt-search-more').first
+        menu.locator('summary').click()
+        menu.get_by_role('button',name='稍后再看').click()
+        expect(page.locator('#bilitube-core-toast')).to_be_visible()
+        expect(page.locator('#bilitube-core-toast')).to_contain_text('登录')
+        evidence['checks'].append('Search more menu handles mouse selection and shows login feedback inside the visible extension root')
         page.locator(".bt-search-input").fill("unfinished draft")
         page.evaluate("window.__first=document.querySelector('.bt-search-row');window.__hold=true")
         page.locator("[data-bt-feed]").scroll_into_view_if_needed()
@@ -107,6 +113,7 @@ def main() -> None:
         expect(page.locator(".bt-search-row")).to_have_count(378)
         evidence["checks"].append("automatic pagination stops after 336 items; manual load appends 42")
         page.locator(".bt-search-input").fill("demo")
+        page.locator('.bt-search-filter-toggle').click()
         page.get_by_role("link", name="最新发布", exact=True).click()
         expect(page.locator(".bt-search-row")).to_have_count(42)
         assert "order=pubdate" in page.url and "duration=2" in page.url

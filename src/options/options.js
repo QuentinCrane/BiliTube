@@ -4,12 +4,12 @@
   const T = (key, fallback, substitutions) => I18n && typeof I18n.t === 'function' ? I18n.t(key, fallback, substitutions) : fallback;
   if (I18n && typeof I18n.apply === 'function') I18n.apply(document);
   const defaults = {
-    enabled:true, glassMode:true, theme:'system', density:'comfortable', motionMode:'full', showCardAuthor:true, showCardMeta:true, sidebarCollapsed:false, showSubscriptions:true,
+    enabled:true, glassMode:false, theme:'system', density:'comfortable', motionMode:'full', showCardAuthor:true, showCardMeta:true, sidebarCollapsed:false, showSubscriptions:true,
     homeFollowedShelf:true, homeLiveShelf:true, homeBangumiShelf:true, homePopularShelf:true,
-    hoverPreview:true, hoverPreviewDelay:500, watchLaterQuick:true, searchSuggestions:true, hideAds:true,
+    hoverPreview:true, hoverPreviewDelay:500, watchLaterQuick:true, searchSuggestions:true, hideAds:true, openRecommendationsInNewTab:true,
   };
-  const ids = ['enabled','glassMode','theme','density','motionMode','showCardAuthor','showCardMeta','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','hoverPreview','hoverPreviewDelay','watchLaterQuick','searchSuggestions','hideAds'];
-  const checkboxIds = new Set(['enabled','glassMode','showCardAuthor','showCardMeta','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','hoverPreview','watchLaterQuick','searchSuggestions','hideAds']);
+  const ids = ['enabled','glassMode','theme','density','motionMode','showCardAuthor','showCardMeta','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','hoverPreview','hoverPreviewDelay','watchLaterQuick','searchSuggestions','hideAds','openRecommendationsInNewTab'];
+  const checkboxIds = new Set(['enabled','glassMode','showCardAuthor','showCardMeta','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','hoverPreview','watchLaterQuick','searchSuggestions','hideAds','openRecommendationsInNewTab']);
   const status = document.getElementById('status');
   function apply(settings) {
     for (const id of ids) {

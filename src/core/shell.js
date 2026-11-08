@@ -61,14 +61,13 @@
         schedule(()=>{
           if(!outlet||!outlet.isConnected)return;
           outlet.classList.add('is-route-entering');
-          transitionTimer=setTimeout(()=>{if(outlet)outlet.classList.remove('is-route-entering');transitionTimer=null;},620);
+          transitionTimer=setTimeout(()=>{if(outlet)outlet.classList.remove('is-route-entering');transitionTimer=null;},560);
         });
       }
     }
     function renderContent(target,route,payload,handlers){
-      if(UI.renderPageTools)UI.renderPageTools(target,payload,handlers);
+      if(UI.renderPageTools&&!String(route).startsWith('search-'))UI.renderPageTools(target,payload,handlers);
       if(route==='home')UI.renderHome(target,payload,handlers);
-      else if(route==='history')UI.renderHistory(target,payload,handlers);
       else if(['search-all','search-video','search-user','search-bangumi','search-media'].includes(route))UI.renderSearch(target,payload,handlers);
       else if(route==='dynamic')UI.renderDynamic(target,payload,handlers);
       else if(route==='watchlater')UI.renderWatchLater(target,payload,handlers);

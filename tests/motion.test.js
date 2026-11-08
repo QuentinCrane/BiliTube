@@ -160,6 +160,10 @@ test('appended cards fade in once, are capped, and never replay existing ones', 
   assert.equal(h.created.length, Motion.LIMITS.maxNewCards);
   assert.equal(h.created[0].keyframes[0].opacity, 0);
   assert.match(h.created[0].keyframes[0].transform, /translateY/);
+  assert.match(h.created[0].keyframes[0].transform, /scale\(/);
+  assert.equal(h.created[0].keyframes.length, 3);
+  assert.equal(h.created[0].timing.easing, Motion.EASING);
+  assert.match(Motion.EASING, /cubic-bezier\(/);
 });
 
 test('cards without the Web Animations API degrade to an instant update', () => {

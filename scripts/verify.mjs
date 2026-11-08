@@ -46,6 +46,9 @@ for (const script of manifest.content_scripts || []) {
 if (manifest.options_page) refs.add(manifest.options_page);
 if (manifest.background?.service_worker) refs.add(manifest.background.service_worker);
 for (const rel of Object.values(manifest.icons || {})) refs.add(rel);
+for (const entry of manifest.web_accessible_resources || []) {
+  for (const rel of entry.resources || []) if (!rel.includes('*')) refs.add(rel);
+}
 for (const rel of refs) {
   if (!fs.existsSync(path.join(root, rel))) fail(`missing manifest resource: ${rel}`);
 }

@@ -88,10 +88,10 @@ def main():
         report['loadedThumbnailAnimations'] = page.evaluate("() => [...document.querySelectorAll('.bt-thumb.is-image-loaded .bt-thumb-progress-shimmer')].filter(node=>getComputedStyle(node).animationName!=='none').length")
         report['listRefresh'] = page.evaluate(r"""() => {
           const result={};
-          for(const route of ['search-video','favorites','space-upload','history','watchlater','dynamic']){
+          for(const route of ['search-video','favorites','space-upload','watchlater','dynamic']){
             try {
             const videos=cards.slice(0,100);
-            const data={...payload,mid:'123',category:'video',results:videos,videos,
+            const data={...payload,mid:'123',query:'fixture',category:'video',results:videos,videos,
               items:videos.map((video,i)=>({id:String(i),video})),shelves:[],folders:[]};
             shell.render(route,data);
             const first=document.querySelector('#bilitube-outlet article');
@@ -116,7 +116,7 @@ def main():
         if not args.measure_only:
             assert all('error' not in value for value in report['listRefresh'].values()), report['listRefresh']
             assert report['listRefresh']['duplicates']['passed'], report['listRefresh']
-            report['checks'].append('Search, favorites, channels, history, Watch Later and dynamic lists retain cards; duplicate keys and deletions reconcile correctly')
+            report['checks'].append('Search, favorites, channels, Watch Later and dynamic lists retain cards; duplicate keys and deletions reconcile correctly')
         page.wait_for_timeout(500)
         report['theme'] = []
         session = context.new_cdp_session(page)

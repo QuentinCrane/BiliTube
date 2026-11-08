@@ -25,7 +25,7 @@ test('watch keeps real Bilibili toolbar event ownership by never relocating it',
   assert.doesNotMatch(watch, /bt-native-toolbar-slot|createComment\(|placeholder\.replaceWith|cloneNode\(|dispatchEvent/);
 });
 
-test('watch leaves native recommendation links untouched rather than rebuilding or bridging them', () => {
+test('watch retains native recommendation links without rebuilding or bridging them', () => {
   const watch = read('src/core/watch.js');
   assert.match(watch, /bt-native-watch-related/);
   assert.doesNotMatch(watch, /bindDirectLink|preventDefault|callbacks\.navigate|buildRelated/);

@@ -41,10 +41,50 @@ class Element {
 
 function uiHarness() {
   const document = { createElement: tag => new Element(tag), createElementNS: (_ns, tag) => new Element(tag) };
-  const context = vm.createContext({document, URL, setTimeout, clearTimeout});
+  const values = new Map();
+  const localStorage = {
+    getItem: key => values.has(key) ? values.get(key) : null,
+    setItem: (key, value) => { values.set(key, String(value)); },
+    removeItem: key => { values.delete(key); },
+  };
+  const context = vm.createContext({document, URL, setTimeout, clearTimeout, localStorage});
   vm.runInContext(source('ui'), context);
   return {ui:context.BiliTubeUI, document, context};
 }
+
+test('video cards retain full titles and independent creator and discussion links', () => {
+  const {ui} = uiHarness();
+  const item = {bvid:'BV1TEST',title:'很长的视频标题'.repeat(12),href:'https://www.bilibili.com/video/BV1TEST',author:'作者',authorHref:'https://space.bilibili.com/7',meta:'1万播放 · 1小时前',dynamicHref:'https://t.bilibili.com/123'};
+  const card = ui.createCard(item);
+  const title = card.querySelector('.bt-card-title');
+  const byline = card.querySelector('.bt-card-byline');
+  const discussion = card.querySelector('.bt-card-discussion');
+  assert.equal(title.textContent,item.title);
+  assert.equal(title.title,item.title);
+  assert.equal(title.href,item.href);
+  assert.equal(byline.querySelector('.bt-card-author').href,item.authorHref);
+  assert.equal(byline.querySelector('.bt-card-meta').textContent,item.meta);
+  assert.equal(discussion.href,item.dynamicHref);
+  assert.equal(discussion.attributes['aria-label'],'查看动态与讨论');
+  assert.equal(discussion.listeners.has('click'),false);
+  const hidden = ui.createCard(item,{showCardAuthor:()=>false,showCardMeta:()=>false});
+  assert.equal(hidden.querySelector('.bt-card-byline'),null);
+  assert.equal(hidden.querySelector('.bt-card-discussion').href,item.dynamicHref);
+});
+
+test('home recommendation video links follow the new-tab preference without changing author links', () => {
+  const {ui} = uiHarness();
+  const make = enabled => {
+    const outlet = new Element('main');
+    ui.renderHome(outlet,{category:'all',videos:[{kind:'video',bvid:'BV1TEST',title:'推荐视频',href:'https://www.bilibili.com/video/BV1TEST',author:'作者',authorHref:'https://space.bilibili.com/7'}],shelves:[],hasMore:false},{openRecommendationsInNewTab:()=>enabled});
+    return outlet;
+  };
+  const enabled=make(true),disabled=make(false);
+  assert.equal(enabled.querySelector('.bt-thumb-link').attributes.target,'_blank');
+  assert.equal(enabled.querySelector('.bt-card-title').attributes.target,'_blank');
+  assert.equal(enabled.querySelector('.bt-card-author').attributes.target,undefined);
+  assert.equal(disabled.querySelector('.bt-card-title').attributes.target,undefined);
+});
 
 test('account and style updates preserve the search node and unsubmitted draft', () => {
   const {ui} = uiHarness();
@@ -88,25 +128,20 @@ test('favorite folders are real links without click interception, even with a le
   assert.equal(link.listeners.has('click'), false);
 });
 
-test('nonempty history renders date groups and handles missing timestamps', () => {
+test('empty search renders a useful landing instead of an API error', () => {
   const {ui}=uiHarness(),outlet=new Element('main');
-  ui.renderHistory(outlet,{videos:[
-    {bvid:'BVhistory1',title:'First',viewedAt:1700000000},
-    {bvid:'BVhistory2',title:'Second',viewedAt:1700000001},
-    {bvid:'BVhistory3',title:'Unknown',viewedAt:0},
-  ],hasMore:false},{});
-  const list=outlet.querySelector('.bt-history-list');
-  assert.equal(list.children.filter(node=>node.className==='bt-history-day').length,2);
-  assert.equal(list.children.filter(node=>node.className==='bt-history-row').length,3);
-  assert.equal(list.querySelector('.bt-history-row').__btCardKey,'BVhistory1');
+  ui.renderSearch(outlet,{query:'',category:'all',results:[],users:[],loading:false,hasMore:false,error:''},{});
+  assert.ok(outlet.querySelector('.bt-search-landing'));
+  assert.ok(outlet.querySelector('.bt-search-quick'));
+  assert.equal(outlet.querySelector('.bt-empty'),null);
 });
 
-function appHarness(url,fallback=[]) {
+function appHarness(url,fallback=[],initialSettings={},beforeBody=false) {
   const pending = [];
   const renders = [];
   const events = new Map();
   const timers = new Map();
-  const watchCalls = {mount:0,updateContext:0,updateChrome:0,destroy:0};
+  const watchCalls = {mount:0,updateContext:0,updateChrome:0,updateRecommendationPreference:0,destroy:0};
   let timerId = 0;
   let callbacks;
   const root = {querySelector:() => null};
@@ -115,21 +150,24 @@ function appHarness(url,fallback=[]) {
   const context = vm.createContext({
     URLSearchParams, AbortController, console, queueMicrotask,
     location:new URL(url),
-    document:{body:{},documentElement:{dataset:{},classList:{add:noOp,remove:noOp,toggle:noOp},removeAttribute:noOp},querySelectorAll:() => []},
+    document:{body:beforeBody?null:{},documentElement:{dataset:{},classList:{add:noOp,remove:noOp,toggle:noOp},removeAttribute:noOp},querySelectorAll:() => []},
     matchMedia:() => ({matches:false,addEventListener:noOp}),
     setTimeout(fn, delay) { timers.set(++timerId,{fn,delay}); return timerId; },
     clearTimeout:id => timers.delete(id),
-    addEventListener:(name, fn) => events.set(name,fn), postMessage:noOp,
-    chrome:{storage:{local:{get:(_keys,fn) => fn({})},onChanged:{addListener:fn=>events.set('storage',fn)}},runtime:{}},
+    addEventListener:(name, fn) => events.set(name,fn), removeEventListener:(name,fn)=>{if(events.get(name)===fn)events.delete(name);}, postMessage:noOp,
+    chrome:{storage:{local:{get:(_keys,fn) => fn({bilitubeCoreSettings:initialSettings})},onChanged:{addListener:fn=>events.set('storage',fn)}},runtime:{}},
     BiliTubePolicy:require('../src/core/policy'), BiliTubeTheme:require('../src/core/theme'), BiliTubeData:require('../src/core/data'),
-    BiliTubeApiClient:{request:(type,params={}) => new Promise(resolve => pending.push({type,params,resolve}))},
+    BiliTubeApiClient:{request:(type,params={},options={}) => new Promise(resolve => {
+      const entry={type,params,resolve,aborted:false};pending.push(entry);
+      if(options.signal)options.signal.addEventListener('abort',()=>{entry.aborted=true;},{once:true});
+    })},
     BiliTubeNativeVisibility:{createGuard:() => ({hide:noOp,restore:noOp})},
     BiliTubeNativeAdapter:{createAdapter:() => ({restore:noOp,updateTheme:noOp})},
-    BiliTubeWatch:{createDecorator:() => ({mount:() => {watchCalls.mount++;},updateContext:() => {watchCalls.updateContext++;},updateChrome:() => {watchCalls.updateChrome++;},destroy:() => {watchCalls.destroy++;},updateTheme:noOp})},
+    BiliTubeWatch:{createDecorator:() => ({mount:() => {watchCalls.mount++;},updateContext:() => {watchCalls.updateContext++;},updateChrome:() => {watchCalls.updateChrome++;},updateRecommendationPreference:() => {watchCalls.updateRecommendationPreference++;},destroy:() => {watchCalls.destroy++;},updateTheme:noOp})},
     BiliTubeExtract:{extractCurrentUser:() => null,extractSearchCards:() => fallback,extractWatch:() => ({})},
     BiliTubePreview:{createController:() => ({destroy:noOp})},
     BiliTubeMotion:{createController:() => ({allowed:() => false,cancel:noOp,prepare:noOp,measure:() => null,play:() => 0,enterNew:() => 0,snapshotCards:() => new Set()})},
-    BiliTubeShell:{createController:() => shell}, BiliTubeActions:{},
+    BiliTubeShell:{createController:() => shell},
   });
   context.window = context;
   vm.runInContext(source('app'),context);
@@ -138,6 +176,12 @@ function appHarness(url,fallback=[]) {
     act(name,...args){return callbacks[name](...args);},
     latest:() => renders.at(-1),
     async changeSettings(patch){events.get('storage')({bilitubeCoreSettings:{newValue:patch}},'local');await settle();},
+    async finishDocument(){
+      context.document.body={};events.get('DOMContentLoaded')();await settle();
+      for(const [id,timer] of [...timers])if(timer.delay===60){timers.delete(id);timer.fn();}
+      await settle();
+    },
+    changeUrlWithoutNotification(url){context.location=new URL(url);},
     async navigate(url) {
       context.location = new URL(url);
       context.dispatchMessage = events.get('message');
@@ -158,6 +202,64 @@ function appHarness(url,fallback=[]) {
 const search = title => ({code:0,data:{numPages:1,result:[{bvid:'BVtest',title}]}});
 const favorite = (id,title) => ({mediaId:id,page:1,hasMore:false,folders:{code:0,data:{list:[{id,title}]}},resources:{code:0,data:{medias:[{bvid:'BVtest',title}]}}});
 
+test('a first feed read can finish before DOMContentLoaded and is reused by the mounted page',async()=>{
+  const h=appHarness('https://www.bilibili.com/',[],{},true);
+  assert.equal(h.renders.length,0);
+  assert.equal(h.pending.filter(item=>item.type==='home').length,1);
+  await h.reply('home',{}, {code:0,data:{item:[{bvid:'BVearly',title:'Early result'}]}});
+  await h.finishDocument();
+  assert.equal(h.pending.filter(item=>item.type==='home').length,0);
+  assert.equal(h.latest().videos[0].title,'Early result');
+});
+
+test('early feed reads honor disabled settings and discard results after navigation',async()=>{
+  const disabled=appHarness('https://www.bilibili.com/',[],{enabled:false},true);
+  assert.equal(disabled.pending.length,0);
+  await disabled.finishDocument();assert.equal(disabled.pending.length,0);
+
+  const h=appHarness('https://www.bilibili.com/',[],{},true);
+  const old=h.pending.find(item=>item.type==='home');
+  await h.navigate('https://search.bilibili.com/video?keyword=new');
+  assert.equal(old.aborted,true);
+  await h.finishDocument();
+  assert.ok(h.pending.some(item=>item.type==='search'&&item.params.keyword==='new'));
+  await h.reply('home',{}, {code:0,data:{item:[{bvid:'BVold',title:'Old result'}]}});
+  await h.reply('search',{},search('New result'));
+  assert.equal(h.latest().results[0].title,'New result');
+
+  const unnoticed=appHarness('https://www.bilibili.com/',[],{},true);
+  const unused=unnoticed.pending.find(item=>item.type==='home');
+  unnoticed.changeUrlWithoutNotification('https://www.bilibili.com/video/BVfirst');
+  await unnoticed.finishDocument();
+  assert.equal(unused.aborted,true);
+  assert.equal(unnoticed.watchCalls.mount,1);
+});
+
+test('a failed early read is retried normally at mount',async()=>{
+  const h=appHarness('https://www.bilibili.com/',[],{},true);
+  await h.reply('home',{},null);
+  await h.finishDocument();
+  assert.equal(h.pending.filter(item=>item.type==='home').length,1);
+  await h.reply('home',{}, {code:0,data:{item:[{bvid:'BVretry',title:'Retry result'}]}});
+  assert.equal(h.latest().videos[0].title,'Retry result');
+});
+
+test('other first-page reads reuse matching early requests',async()=>{
+  for(const [url,type,expected] of [
+    ['https://search.bilibili.com/video?keyword=demo&order=click&duration=2','search',{keyword:'demo',category:'video',order:'click',duration:2}],
+    ['https://t.bilibili.com/','dynamic',{offset:''}],
+    ['https://www.bilibili.com/list/watchlater','watchlater',{}],
+    ['https://space.bilibili.com/123/upload','space-archives',{mid:'123',page:1}],
+  ]){
+    const h=appHarness(url,[],{},true);
+    const early=h.pending.filter(item=>item.type===type);
+    assert.equal(early.length,1,url);
+    for(const [key,value] of Object.entries(expected))assert.equal(early[0].params[key],value,url);
+    await h.finishDocument();
+    assert.equal(h.pending.filter(item=>item.type===type).length,1,url);
+  }
+});
+
 test('video-to-video SPA navigation keeps the Watch decorator mounted', async () => {
   const h=appHarness('https://www.bilibili.com/video/BVfirst/');
   assert.equal(h.watchCalls.mount,1);
@@ -166,6 +268,21 @@ test('video-to-video SPA navigation keeps the Watch decorator mounted', async ()
   assert.equal(h.watchCalls.destroy,0);
   assert.equal(h.watchCalls.updateContext,1);
   assert.equal(h.watchCalls.updateChrome,1);
+});
+
+test('changing recommendation tab preference updates Watch without remounting the player', async () => {
+  const h=appHarness('https://www.bilibili.com/video/BVfirst/');
+  await h.changeSettings({openRecommendationsInNewTab:false});
+  assert.equal(h.watchCalls.updateRecommendationPreference,1);
+  assert.equal(h.watchCalls.mount,1);
+  assert.equal(h.watchCalls.destroy,0);
+});
+
+test('an empty search route stays on its landing without issuing a search request', async () => {
+  const h=appHarness('https://search.bilibili.com/all');
+  assert.equal(h.latest().loading,false);
+  assert.equal(h.latest().hasMore,false);
+  assert.equal(h.pending.filter(item=>item.type==='search').length,0);
 });
 
 test('an old search response neither replaces the new result nor clears its loading state', async () => {
@@ -393,9 +510,41 @@ test('dynamic starts with loading feedback and home category requests do not pag
   const home=appHarness('https://www.bilibili.com/?bilitube_category=tech');
   assert.equal(home.latest().loading,true);assert.equal(home.latest().hasMore,false);
   const count=home.pending.length;home.act('loadMore','home');assert.equal(home.pending.length,count);
+  assert.equal(home.pending.some(item=>item.type==='home'||item.type==='home-sections'),false);
+  assert.ok(home.pending.some(item=>item.type==='home-category'&&item.params.category==='tech'));
   const live=appHarness('https://www.bilibili.com/?bilitube_category=live');
-  await live.reply('home',{}, {code:0,data:{item:[]}});assert.equal(live.latest().loading,true);
+  assert.equal(live.pending.some(item=>item.type==='home'||item.type==='home-category'),false);
+  assert.deepEqual(Array.from(live.pending.find(item=>item.type==='home-sections').params.sections),['live']);
+  assert.equal(live.latest().loading,true);
   await live.reply('home-sections',{}, {live:{code:0,data:{}}});assert.equal(live.latest().loading,false);
+});
+
+test('a failed home category fetches recommendation fallback only when needed',async()=>{
+  const h=appHarness('https://www.bilibili.com/?bilitube_category=tech');
+  assert.equal(h.pending.some(item=>item.type==='home'),false);
+  await h.reply('home-category',{category:'tech'},null);
+  assert.equal(h.pending.filter(item=>item.type==='home').length,1);
+  await h.reply('home',{}, {code:0,data:{item:[{bvid:'BVtech',title:'Fallback',tname:'科技',owner:{name:'Author'}}]}});
+  assert.equal(h.latest().videos[0].title,'Fallback');
+});
+
+test('home reads only enabled shelves and fetches a shelf when it is enabled', async () => {
+  const disabled={homeFollowedShelf:false,homeLiveShelf:false,homeBangumiShelf:false,homePopularShelf:false};
+  const h=appHarness('https://www.bilibili.com/',[],disabled);
+  assert.equal(h.pending.some(item=>item.type==='home-sections'),false);
+  await h.changeSettings({...disabled,homeLiveShelf:true});
+  assert.deepEqual(Array.from(h.pending.find(item=>item.type==='home-sections').params.sections),['live']);
+  await h.reply('home-sections',{}, {live:{code:0,data:{list:[]}}});
+  h.act('refreshCurrent');
+  assert.deepEqual(Array.from(h.pending.find(item=>item.type==='home-sections'&&item.params.forceFresh).params.sections),['live']);
+
+  const live=appHarness('https://www.bilibili.com/?bilitube_category=live',[],disabled);
+  assert.equal(live.latest().loading,false);
+  assert.equal(live.pending.some(item=>item.type==='home-sections'),false);
+  await live.changeSettings({...disabled,homeLiveShelf:true});
+  assert.equal(live.latest().loading,true);
+  await live.reply('home-sections',{}, {live:{code:0,data:{}}});
+  assert.equal(live.latest().loading,false);
 });
 
 test('an account with no favorite folders renders a successful empty state', async () => {
@@ -420,6 +569,61 @@ for(const dismissal of ['Escape','blur','clear'])test(`late suggestions stay dis
   else if(dismissal==='blur')input.listeners.get('blur')[0]();
   else {input.value='';input.listeners.get('input')[0]();input.value='demo';}
   reply(['demo suggestion']);await pending;assert.equal(header.querySelector('.bt-search-suggestions').hidden,true);
+});
+
+test('empty search focus shows the native default word, history and trending panel', async () => {
+  const { ui } = uiHarness();
+  const header = ui.createTopbar({settings:{searchSuggestions:true}}, {
+    requestSearchDefaultWord: async () => '默认推荐词',
+    requestSearchTrending: async () => ({
+      title:'bilibili热搜', items:[{ keyword:'热词', label:'热词展示', position:1, icon:'' }],
+    }),
+  });
+  const input = header.querySelector('.bt-search-input');
+  input.listeners.get('focus')[0]();
+  await settle(); await settle();
+  assert.equal(input.placeholder, '默认推荐词');
+  const panel = header.querySelector('.bt-search-suggestions');
+  assert.equal(panel.hidden, false);
+  assert.ok(panel.querySelector('.bt-search-trending'));
+  assert.equal(panel.querySelector('.bt-search-rank').textContent, '1');
+  assert.equal(panel.querySelector('.bt-search-trending-text').textContent, '热词展示');
+});
+
+test('search history renders in the empty focus panel and supports clear and record', async () => {
+  const { ui, context } = uiHarness();
+  context.localStorage.setItem('bilitube_search_history', JSON.stringify([{value:'摄影教程'},{value:'NAS 搭建'}]));
+  const header = ui.createTopbar({}, { requestSearchTrending: async () => ({ title:'', items:[] }) });
+  const input = header.querySelector('.bt-search-input');
+  input.listeners.get('focus')[0]();
+  await settle(); await settle();
+  const panel = header.querySelector('.bt-search-suggestions');
+  assert.equal(panel.hidden, false);
+  const section = panel.querySelector('.bt-search-history');
+  assert.equal(section.children[1].children.length, 2);
+  assert.equal(section.children[1].children[0].children[0].children[1].textContent, '摄影教程');
+  section.children[0].children[1].listeners.get('click')[0]();
+  assert.equal(panel.hidden, true);
+  assert.deepEqual(JSON.parse(context.localStorage.getItem('bilitube_search_history')), []);
+  const form = header.querySelector('.bt-search');
+  input.value = '新搜索';
+  form.listeners.get('submit')[0]({ preventDefault() {} });
+  assert.equal(JSON.parse(context.localStorage.getItem('bilitube_search_history'))[0].value, '新搜索');
+});
+
+test('disabled search suggestions suppress the default focus panel', async () => {
+  const { ui } = uiHarness();
+  let requested = false;
+  const header = ui.createTopbar({settings:{searchSuggestions:false}}, {
+    requestSearchDefaultWord: async () => { requested = true; return '不应出现'; },
+    requestSearchTrending: async () => { requested = true; return { title:'', items:[] }; },
+  });
+  const input = header.querySelector('.bt-search-input');
+  input.listeners.get('focus')[0]();
+  await settle();
+  assert.equal(requested, false);
+  assert.equal(input.placeholder, '搜索');
+  assert.equal(header.querySelector('.bt-search-suggestions').hidden, true);
 });
 
 test('IME composition suppresses suggestions and does not select a result on confirmation',()=>{

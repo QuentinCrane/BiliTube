@@ -15,7 +15,7 @@ OUTPUT = ROOT / 'output' / 'playwright' / 'refresh-experience'
 
 FIXTURE = r"""
 window.__holdKind='';window.__heldReads=[];window.__version=0;window.__failReads=false;window.__empty=false;
-window.__suggestionReply=null;window.__refreshRequests=[];
+window.__suggestionReply=null;window.__refreshRequests=[];window.__detailActive=0;window.__detailMax=0;
 const titles=['带着相机去山里，记录秋天的一天','给桌面留一点空白：我的工作空间','花了三个月，终于做出了这段动画','城市散步计划｜找一家街角咖啡馆','从零开始理解光线与色彩','如果周末只有一天，你会去哪里？','一个人的厨房，也要认真吃饭','那些让人忍不住循环的现场','在家就能完成的摄影练习','走进博物馆，看看时间留下的痕迹','关于一台老相机的故事','慢下来，听听生活的声音'];
 const names=['山野记录','桌面研究所','帧间漫游','周末去哪里','光线笔记','一路向南'];
 const videos=page=>Array.from({length:12},(_,i)=>({
@@ -28,19 +28,31 @@ const baseSend=chrome.runtime.sendMessage;
 chrome.runtime.sendMessage=(message,done)=>{
  const {type,params={}}=message;
  if(type==='search-suggest'){window.__suggestionReply=()=>done({ok:true,data:{code:0,data:{result:{tag:[{value:'相机摄影'},{value:'相机入门'}]}}}});return;}
- const handled=['home','home-sections','search','watchlater','favorites','space-archives','dynamic'];
+ const handled=['home','home-sections','search','search-detail','watchlater','favorites','space-archives','dynamic'];
  if(!handled.includes(type))return baseSend(message,done);
  window.__refreshRequests.push({type,params});
  let data={code:0,data:{}};const list=window.__empty?[]:videos(params.page||1);
  if(type==='home')data={code:0,data:{item:list.map(item=>({...item,duration:512,stat:{view:item.play},pubdate:Math.floor(Date.now()/1000)-3600}))}};
  if(type==='search')data={code:0,data:{numPages:4,result:list}};
+ if(type==='search-detail'){
+  window.__detailActive++;window.__detailMax=Math.max(window.__detailMax,window.__detailActive);
+  data={code:0,data:{owner:{mid:123,name:'作者',face:'https://fixture.invalid/avatar/0.svg'},stat:{view:23456},pubdate:Math.floor(Date.now()/1000)-3600,desc:'视频详情简介'}};
+ }
  if(type==='home-sections')data={popular:{code:0,data:{list:videos(1)}}};
  if(type==='watchlater')data={code:0,data:{list:list.slice(0,5).map(item=>({...item,duration:512}))}};
  if(type==='favorites')data={mediaId:'42',page:params.page||1,hasMore:true,folders:{code:0,data:{list:[{id:42,title:'值得反复观看',media_count:58,cover:'https://fixture.invalid/cover/2.svg'},{id:43,title:'周末慢慢看',media_count:12}]}},resources:{code:0,data:{medias:list.map(item=>({...item,cover:item.pic,upper:{mid:123,name:item.author,face:item.owner.face},cnt_info:{play:item.play},duration:512}))}}};
  if(type==='space-archives')data={code:0,data:{page:{count:48},list:{vlist:list}}};
- if(type==='dynamic')data={code:0,data:{has_more:false,items:[{id_str:'123456789',modules:{module_author:{mid:123,name:'山野记录',pub_time:'今天 10:24'},module_dynamic:{desc:{text:'走了一整天，终于在日落之前到达山顶。把今天的风景分享给你。'},major:{draw:{items:[{src:'https://fixture.invalid/cover/0.svg'},{src:'https://fixture.invalid/cover/5.svg'}]}}}}}]}};
+ if(type==='dynamic')data={code:0,data:{has_more:false,items:[
+  ...list.slice(0,6).map((video,i)=>({
+   id_str:String(200000+i),modules:{
+    module_author:{mid:123,name:video.author,face:video.owner.face,pub_time:'1小时前'},
+    module_dynamic:{major:{archive:{bvid:video.bvid,title:i===0?'这是一个非常长的投稿标题，用来验证视频卡片只显示两行，并且仍可查看完整标题和进入原动态讨论页面。':video.title,cover:video.pic,duration:'08:32',stat:{play:i===0?'2.3万':video.play}}}}
+   }
+  })),
+  {id_str:'123456789',modules:{module_author:{mid:123,name:'山野记录',pub_time:'今天 10:24'},module_dynamic:{desc:{text:'走了一整天，终于在日落之前到达山顶。把今天的风景分享给你。'},major:{draw:{items:[{src:'https://fixture.invalid/cover/0.svg'},{src:'https://fixture.invalid/cover/5.svg'}]}}}}}
+ ]}};
  if(window.__failReads)data={code:-500};
- const reply=()=>done({ok:true,data});
+ const reply=()=>{if(type==='search-detail')window.__detailActive--;done({ok:true,data});};
  if(window.__holdKind==='all'||window.__holdKind==='append'&&params.append||window.__holdKind==='refresh'&&params.forceFresh)window.__heldReads.push({type,params,reply});
  else setTimeout(reply,35);
 };
@@ -81,7 +93,7 @@ def main():
         context=browser.new_context(viewport={'width':1440,'height':1000},reduced_motion='reduce')
         def respond(route):
             if route.request.resource_type=='image':route.fulfill(content_type='image/svg+xml',body=artwork(route.request.url))
-            else:route.fulfill(content_type='text/html',body=f'<!doctype html><html><head><meta charset="utf-8"><style>body{{margin:0}}{css}</style></head><body><div id="native-business"></div></body></html>')
+            else:route.fulfill(content_type='text/html',body=f'<!doctype html><html><head><meta charset="utf-8"><style>body{{margin:0;min-width:1100px}}{css}</style></head><body><div id="native-business"></div></body></html>')
         context.route('**/*',respond)
         context.add_init_script(mock+'\naddEventListener("DOMContentLoaded",()=>{\n'+sources+'\n},{once:true});')
         page=context.new_page()
@@ -97,6 +109,10 @@ def main():
 
         go('https://search.bilibili.com/video?keyword=相机&order=pubdate&duration=2')
         expect(page.locator('.bt-search-row')).to_have_count(12)
+        expect(page.locator('.bt-search-author img').first).to_be_visible()
+        assert page.evaluate('__detailMax<=3')
+        assert page.evaluate('__refreshRequests.filter(item=>item.type==="search-detail").length<12')
+        check('Missing search avatars are loaded near the viewport with at most three concurrent detail reads')
         screenshot('search-light')
         page.locator('.bt-search-input').fill('尚未提交的搜索')
         page.evaluate("window.__first=document.querySelector('.bt-search-row');window.__media=__first.querySelector('img');window.__holdKind='append'")
@@ -142,6 +158,13 @@ def main():
         assert 'keyword=' in page.url
         check('Search suggestions stay closed after Escape and expose keyboard selection; IME confirmation remains in the field')
 
+        page.set_viewport_size({'width':390,'height':844});page.evaluate('window.scrollTo(0,0)')
+        page.wait_for_function('document.documentElement.scrollWidth<=innerWidth+1')
+        page.locator('.bt-search-filter-toggle').click();expect(page.locator('.bt-search-native-filter')).to_be_visible()
+        screenshot('search-narrow-filters')
+        check('Narrow search overrides the native minimum body width and keeps filters usable')
+        page.set_viewport_size({'width':1440,'height':1000})
+
         go('https://www.bilibili.com/list/watchlater')
         expect(page.locator('.bt-library-row')).to_have_count(5)
         screenshot('watchlater-light')
@@ -169,7 +192,36 @@ def main():
         expect(page.locator('html')).to_have_attribute('data-bt-theme','dark');screenshot('home-dark')
 
         go('https://space.bilibili.com/123/favlist?fid=42');expect(page.locator('.bt-favorite-folder')).to_have_count(2);screenshot('favorites-light')
-        go('https://t.bilibili.com/');expect(page.locator('.bt-dynamic-card')).to_have_count(1);screenshot('dynamic-light')
+        go('https://t.bilibili.com/');expect(page.locator('.bt-dynamic-card')).to_have_count(1)
+        expect(page.locator('.bt-dynamic-video-grid .bt-video-card')).to_have_count(6)
+        card=page.locator('.bt-dynamic-video-grid .bt-video-card').first
+        title=card.locator('.bt-card-title')
+        assert title.get_attribute('title')==title.text_content()
+        expect(card.get_by_role('link',name='查看动态与讨论')).to_have_attribute('href','https://t.bilibili.com/200000')
+        expect(card.locator('.bt-card-author')).to_have_attribute('href','https://space.bilibili.com/123')
+        for width,height in [(1440,1000),(1100,900),(390,844)]:
+            page.set_viewport_size({'width':width,'height':height})
+            page.wait_for_function('document.documentElement.scrollWidth<=innerWidth+1')
+            metrics=card.evaluate('''card=>{
+              const title=card.querySelector('.bt-card-title'),author=card.querySelector('.bt-card-author'),meta=card.querySelector('.bt-card-meta');
+              const rect=el=>el.getBoundingClientRect();
+              return {titleHeight:rect(title).height,lineHeight:parseFloat(getComputedStyle(title).lineHeight),
+                rowHeight:rect(card.querySelector('.bt-card-row')).height,authorTop:rect(author).top,metaTop:rect(meta).top,
+                horizontalOverflow:document.documentElement.scrollWidth>innerWidth+1};
+            }''')
+            assert metrics['titleHeight']<=2*metrics['lineHeight']+1,metrics
+            assert metrics['rowHeight']<=75,metrics
+            assert abs(metrics['authorTop']-metrics['metaTop'])<2,metrics
+            assert not metrics['horizontalOverflow'],metrics
+        card.get_by_role('link',name='查看动态与讨论').focus()
+        expect(card.get_by_role('link',name='查看动态与讨论')).to_be_focused()
+        screenshot('dynamic-narrow')
+        page.set_viewport_size({'width':1440,'height':1000});screenshot('dynamic-light')
+        card.get_by_role('link',name='查看动态与讨论').click()
+        page.wait_for_url('https://t.bilibili.com/200000')
+        expect(page.locator('#native-business')).to_have_count(1)
+        assert page.locator('#native-business').evaluate("el => getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden'")
+        check('Video titles clamp to two lines and author/view metadata share a row at 1440px, 1100px and 390px; discussion remains keyboard accessible')
         check('Home, search, favorites, dynamic and Watch Later render with shared visual hierarchy')
 
         go('https://www.bilibili.com/')

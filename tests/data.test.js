@@ -32,17 +32,6 @@ test('normalizes public region ranking items into category cards', () => {
   assert.equal(out[0].href, 'https://www.bilibili.com/video/BV1REGION');
 });
 
-test('normalizes history progress and part', () => {
-  const out = Data.normalizeHistory({ code: 0, data: { list: [{
-    title: '历史视频', author_name: 'UP', author_mid: 8, cover: '//i0.hdslb.com/h.jpg',
-    duration: 100, progress: 40, view_at: 1700000000,
-    history: { business: 'archive', bvid: 'BV1HISTORY', part: 'P2' },
-  }] } });
-  assert.equal(out[0].progress, 0.4);
-  assert.match(out[0].meta, /P2/);
-  assert.match(out[0].meta, /40%/);
-});
-
 test('space profile never fabricates identity and preserves MID', () => {
   const profile = Data.normalizeSpaceProfile({ code: 0, data: {
     card: { mid: '357702240', name: 'Creator', face: '//i0.hdslb.com/f.jpg', sign: 'hello', fans: 1200, attention: 12, archive_count: 33 },
@@ -72,6 +61,17 @@ test('search DOM-shaped item normalization keeps distinct video and author links
   assert.equal(card.authorHref, 'https://space.bilibili.com/2');
 });
 
+test('search cards retain result fields and fill missing details from video metadata', () => {
+  const now=1_800_000_000;
+  const api=Data.normalizeSearch({code:0,data:{result:[{bvid:'BVtest',aid:12,title:'<em>相机</em>',mid:42,author:'作者',play:12345,pubdate:now-86400,description:'简介 <em>文字</em>',upic:'//i0.hdslb.com/face.jpg'}]}},now)[0];
+  assert.equal(api.description,'简介 文字');assert.equal(api.meta,'1.2万播放 · 1天前');assert.equal(api.avatar,'https://i0.hdslb.com/face.jpg');assert.equal(api.aid,12);
+  const native=Data.normalizeSearch({code:0,data:{result:[{bvid:'BVdom',title:'原生',author:'作者',viewText:'27万',publishedText:'3天前'}]}},now)[0];
+  assert.equal(native.meta,'27万播放 · 3天前');
+  const detail=Data.normalizeSearchDetail({code:0,data:{aid:12,owner:{mid:42,name:'作者',face:'//i0.hdslb.com/face.jpg'},stat:{view:12345},pubdate:now-86400,desc:'视频简介'}},now);
+  assert.equal(detail.avatar,'https://i0.hdslb.com/face.jpg');assert.equal(detail.authorHref,'https://space.bilibili.com/42');assert.equal(detail.description,'视频简介');assert.equal(detail.meta,api.meta);
+  assert.equal(Data.normalizeSearchDetail({code:-403}),null);
+});
+
 
 test('normalizes dynamic feed video and text cards without DOM selectors', () => {
   const list = Data.normalizeDynamic({ code: 0, data: { items: [
@@ -84,6 +84,12 @@ test('normalizes dynamic feed video and text cards without DOM selectors', () =>
   assert.equal(list[1].href, 'https://t.bilibili.com/2');
   assert.equal(list[0].authorHref, 'https://space.bilibili.com/7');
   assert.equal(list[1].images[0].startsWith('https://'), true);
+});
+
+test('dynamic video metadata keeps publish time and zero views distinct', () => {
+  const video = stat => ({id_str:'123',modules:{module_author:{name:'UP',pub_time:'刚刚'},module_dynamic:{major:{archive:{bvid:'BV1DYN',title:'投稿',stat}}}}});
+  const items = Data.normalizeDynamic({code:0,data:{items:[video(undefined),video({play:0}),video({view:'1.2万'})]}});
+  assert.deepEqual(items.map(item => item.video.meta), ['刚刚','0播放 · 刚刚','1.2万播放 · 刚刚']);
 });
 
 test('derives sidebar subscription creators from dynamic feed authors', () => {
@@ -113,13 +119,21 @@ test('normalizes favorite folders and favorite resources', () => {
   assert.equal(items[0].duration, '1:01');
 });
 
-test('history treats progress=-1 as completed and preserves multipart page link', () => {
-  const out = Data.normalizeHistory({ code:0, data:{ list:[{
-    title:'已看完的分P视频', author_name:'UP', author_mid:8, cover:'//i0.hdslb.com/h.jpg',
-    duration:120, progress:-1, view_at:1700000001,
-    history:{ business:'archive', bvid:'BV1DONE', page:3, part:'第三P' },
-  }] } });
-  assert.equal(out[0].progress, 1);
-  assert.match(out[0].meta, /100%/);
-  assert.equal(out[0].href, 'https://www.bilibili.com/video/BV1DONE?p=3');
+test('normalizes the native default search word and trending list', () => {
+  assert.equal(Data.normalizeSearchDefaultWord({ code:0, data:{ show_name:'默认<b>推荐</b>词' } }), '默认推荐词');
+  const out = Data.normalizeSearchTrending({ code:0, data:{ trending:{
+    title:'bilibili热搜',
+    top_list:[{ keyword:'置顶词', show_name:'置顶展示' }],
+    list:[
+      { keyword:'热词', show_name:'热词展示', icon:'http://i0.hdslb.com/a.png' },
+      { keyword:'置顶词', show_name:'重复项' },
+    ],
+  } } });
+  assert.equal(out.title, 'bilibili热搜');
+  assert.deepEqual(out.items.map(item => item.keyword), ['置顶词','热词']);
+  assert.equal(out.items[0].pinned, true);
+  assert.equal(out.items[0].position, 1);
+  assert.equal(out.items[1].label, '热词展示');
+  assert.equal(out.items[1].icon.startsWith('https://'), true);
+  assert.deepEqual(Data.normalizeSearchTrending(null), { title:'', items:[] });
 });

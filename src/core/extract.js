@@ -36,6 +36,7 @@
     const seen = new Set();
     const result = [];
     for (const card of candidates) {
+      if(card.closest&&card.closest('#bilitube-root,#bilitube-watch-layer,#bilitube-native-layer'))continue;
       const videoAnchor = findVideoAnchor(card);
       if (!videoAnchor) continue;
       const href = abs(videoAnchor.href || videoAnchor.getAttribute('href'));
@@ -49,11 +50,14 @@
       const metaNode = queryFirst(card, ['.so-icon.watch-num','.bili-video-card__stats--item','[class*="meta"]','[class*="stat"]']);
       const durationNode = queryFirst(card, ['.duration','.bili-video-card__stats__duration','[class*="duration"]']);
       const avatar = authorAnchor && queryFirst(authorAnchor, ['img']);
+      const authorParts=text(authorAnchor).split(/\s*[·•]\s*/),last=authorParts[authorParts.length-1]||'';
+      const published=authorParts.length>1&&/^(?:刚刚|昨天|前天|\d+\s*(?:秒|分钟|小时|天|周|个月|年)前|\d{1,4}[-/.年]\d{1,2}(?:[-/.月]\d{1,2}日?)?)$/.test(last)?authorParts.pop():'';
+      const view=text(metaNode),description=queryFirst(card,['.bili-video-card__info--desc','.video-desc','[class*="description"]']);
       const normalized = Data.normalizeSearchItem({
         bvid: bvidMatch[1], href, title,
         thumbnail: imageSource(image), duration: text(durationNode),
-        author: text(authorAnchor), authorHref: authorAnchor && (authorAnchor.href || authorAnchor.getAttribute('href')),
-        avatar: imageSource(avatar), meta: text(metaNode),
+        author: authorParts.join(' · '), authorHref: authorAnchor && (authorAnchor.href || authorAnchor.getAttribute('href')),
+        avatar: imageSource(avatar), meta:[view?`${view}${T('views','播放')}`:'',published].filter(Boolean).join(' · '),description:text(description),
       });
       if (!normalized) continue;
       seen.add(bvidMatch[1]); result.push(normalized);

@@ -20,14 +20,14 @@ body{margin:0;font-family:Arial,sans-serif}.bili-header{height:64px}
 .left-container{width:820px}.right-container{width:350px;margin-left:30px}
 .video-info-container{height:90px}.video-info-container h1{font-size:24px;margin:12px 0}
 .video-info-detail-list{height:24px}.player-wrap{width:820px;height:460px}
-.bpx-player-container{background:#101820}video{display:block;width:100%;height:100%}
+.bpx-player-container{background:#101820}.bpx-player-video-wrap{height:calc(100% - 56px)}.bpx-player-sending-bar{height:56px}video{display:block;width:100%;height:100%}
 .up-info-container{height:104px}.recommend-list-v1{margin-top:12px}
 .video-page-card-small{height:95px}.pic-box{background:#b4c5ce}.card-box{display:flex}
 .video-toolbar-left{height:40px}.video-desc{height:80px}
 </style></head><body><header class="bili-header">Native header</header><div id="app">
 <div id="mirror-vdcon" class="video-container-v1"><div class="left-container">
 <div class="video-info-container"><h1>沿着海岸线，记录日落前的最后一束光</h1><div class="video-info-detail-list">12.8 万播放 · 2 天前</div></div>
-<div id="playerWrap" class="player-wrap"><div class="bpx-player-container" data-screen="normal"><video id="native-video" muted></video></div></div>
+<div id="playerWrap" class="player-wrap"><div class="bpx-player-container" data-screen="normal"><div class="bpx-player-video-wrap"><video id="native-video" muted></video></div><div class="bpx-player-sending-bar">弹幕</div></div></div>
 <div id="arc_toolbar_report" class="video-toolbar-container"><div class="video-toolbar-left"><button>点赞</button><button>收藏</button></div></div>
 <div id="v_desc" class="video-desc">傍晚的海风与远处的灯塔</div><div id="comment-module">评论</div>
 </div><aside class="right-container"><div class="right-container-inner">
@@ -84,6 +84,9 @@ def main():
             page = setup(width, theme)
             before = geometry(page)
             assert before['player']['y'] == 72, before
+            video_box=page.locator('.bpx-player-video-wrap').bounding_box()
+            assert abs(video_box['width']/video_box['height']-16/9)<.001,video_box
+            assert abs(before['player']['height']-video_box['height']-56)<.1,before
             page.screenshot(path=str(OUTPUT / f'{width}-prepaint.png'))
             mount(page, theme)
             same(before, geometry(page))

@@ -18,14 +18,25 @@
     }
   }
 
-  function t(key, fallback = '', substitutions) {
+  function lookup(key, substitutions) {
     try {
       const getMessage = chromeApi && chromeApi.i18n && chromeApi.i18n.getMessage;
-      if (typeof getMessage === 'function') {
-        const message = getMessage.call(chromeApi.i18n, String(key), valuesOf(substitutions));
-        if (message) return message;
-      }
-    } catch {}
+      if (typeof getMessage !== 'function') return '';
+      return getMessage.call(chromeApi.i18n, String(key), valuesOf(substitutions)) || '';
+    } catch {
+      return '';
+    }
+  }
+
+  // _locales 没有复数规则：计数为 1 时优先取 <key>_one，缺失时回落到原键。
+  function t(key, fallback = '', substitutions) {
+    const values = valuesOf(substitutions);
+    if (values.length === 1 && values[0] === '1') {
+      const singular = lookup(`${key}_one`, values);
+      if (singular) return singular;
+    }
+    const message = lookup(key, values);
+    if (message) return message;
     return typeof fallback === 'function' ? fallback(substitutions) : String(fallback == null ? '' : fallback);
   }
 

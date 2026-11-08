@@ -62,13 +62,35 @@ git diff --check
 
 ## Repository settings
 
-建议 GitHub 仓库 About 设置：
+`About` 里的 Description 和 Topics 直接决定仓库能不能被搜到，写完要回仓库首页确认它们真的生效，而不是只留在这份清单里。
 
-- Description：`A YouTube Desktop-inspired visual layer for Bilibili.`
-- Topics：`bilibili`、`browser-extension`、`chrome-extension`、`edge-extension`、`manifest-v3`、`javascript`、`youtube-desktop`
+- Description：中文一句加英文一句，用 `·` 分隔。GitHub 对中文分词很弱，纯中文描述在英文查询下完全不出现；两句各自命中一种语言，而且都写成完整的话，不是关键词拼接。
+
+  ```text
+  给 B 站网页版加上 YouTube 式布局的浏览器扩展 · A Chrome / Edge extension that adds a YouTube Desktop-style layout to Bilibili.
+  ```
+
+- Topics：`bilibili`、`bilibili-extension`、`browser-extension`、`chrome-extension`、`edge-extension`、`manifest-v3`、`javascript`、`ui`、`youtube`
+
+  topics 会生成 `github.com/topics/bilibili` 这类聚合页，是仓库之外唯一免费的自然入口，不要留空。`bilibili-extension` 用来接精准查询，`chrome-extension` 和 `browser-extension` 的聚合页浏览量更大但竞争也大。
+
+- Website：暂时留空，有演示页或商店链接后再填。
 - License：MIT
 - 开启 Issues；如果准备接收贡献，再开启 Discussions。
 - 开启 Actions 后，将 Node 测试和 `scripts/verify.mjs` 加入 CI。
+
+## Search visibility check
+
+改完 About 之后，用无痕窗口分别搜索，确认落在结果的第一页：
+
+1. GitHub 站内，中文：`b站 布局`、`b站 youtube`、`bilibili youtube 布局`。
+2. GitHub 站内，英文：`bilibili youtube layout`、`bilibili extension`、`youtube desktop bilibili`。
+3. Google 或 Bing：`b站 youtube 布局`、`bilibili youtube layout extension`。
+4. 直接打开 `https://github.com/topics/bilibili`，确认仓库出现在列表里。
+
+搜索词要挑差异化的那几组。「B 站美化」「bilibili 扩展」这类通用词的前排长期被 BewlyBewly 一类项目占住，正面比不过；「YouTube 布局」这类描述具体形态的词竞争小，也更贴近目标用户脑子里那句话。
+
+站内搜索依赖仓库名、Description 和 Topics；站外搜索依赖外链，只有在 B站专栏、V2EX、少数派这类页面提到仓库地址之后才会有排名。仓库本身不产生搜索流量，这个差异要分清。
 
 仓库默认分支建议保持 `main`，外部贡献使用 Pull Request。不要在公开仓库中保存个人 Bilibili 登录态或真实账号数据。
 

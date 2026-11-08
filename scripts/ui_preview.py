@@ -121,8 +121,12 @@ const scenarios = {
   'home-category': () => render('home', {route: 'home', category: 'tech', videos: cards.slice(0, 8), shelves: [], loading: false, hasMore: false}),
   search: () => render('search-video', {route: 'search-video', query: '降噪耳机 实测', category: 'video',
     filters: {order: 'totalrank', duration: 0}, results: cards.slice(0, 6), users: [], loading: false, hasMore: true}),
+  'search-landing': () => render('search-all', {route: 'search-all', query: '', category: 'all',
+    filters: {order: 'totalrank', duration: 0}, results: [], users: [], loading: false, hasMore: false}),
   dynamic: () => render('dynamic', {route: 'dynamic', mode: 'all', loading: false, hasMore: true, items: [
-    ...cards.slice(0, 5).map((video, i) => ({id: String(i), video})),
+    ...cards.slice(0, 5).map((video, i) => ({id: String(i), video: {...video,
+      title: i === 0 ? '这是一个特别长的视频标题：用来检查投稿卡片最多显示两行，同时保留完整标题供用户查看' : video.title,
+      dynamicHref: `https://t.bilibili.com/${100 + i}`}})),
     ...cards.slice(5, 8).map((video, i) => ({id: 'p' + i, author: video.author, authorHref: video.authorHref,
       avatar: video.avatar, time: '2 小时前', href: video.href,
       text: '新的视频已经上传，这次把整个流程重新梳理了一遍，希望能帮到准备入坑的朋友。'})),

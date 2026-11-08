@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createApiClient(root) {
   const snapshots=new Map(),waiting=new Set();
   const nativeTypes=new Set(['home','search','space-archives','dynamic','watchlater']);
-  const reads=new Set(['home','search','space-archives','space-profile','dynamic','watchlater','favorites','home-sections','home-category','account','subscriptions','history','history-status','preview','search-suggest','watch-related']);
+  const reads=new Set(['home','search','search-detail','space-archives','space-profile','dynamic','watchlater','favorites','home-sections','home-category','account','subscriptions','preview','search-suggest','search-default','search-trending']);
   function key(type,params={}){
     if(type==='search')return JSON.stringify([type,String(params.keyword||'').trim(),params.category||'all',Number(params.page||1),params.category==='video'?params.order||'totalrank':'',params.category==='video'?Number(params.duration||0):0]);
     if(type==='space-archives')return JSON.stringify([type,String(params.mid||''),Number(params.page||1)]);

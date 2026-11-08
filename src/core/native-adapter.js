@@ -6,12 +6,15 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createNativeAdapterModule(UI) {
   const HEADER_SELECTORS = ['.bili-header', '#biliMainHeader', '.mini-header', '.international-header', '.bili-header-v2'];
   const HEADER_SELECTOR = HEADER_SELECTORS.join(',');
+  const HISTORY_VIEW_KEY = 'bilitube_history_view_chosen';
   function createAdapter(doc = document) {
     let layer = null;
     let drawer = null;
     let observer = null;
     let currentData = {};
     let currentCallbacks = {};
+    let historyViewHandler = null;
+    let historyViewGeneration = 0;
     const hidden = new Map();
     function hideHeader(node) {
       if (!node || hidden.has(node)) return;
@@ -44,6 +47,19 @@
       layer.append(drawer.backdrop);
       doc.body.append(layer);
     }
+    function trackHistoryViewChoice() {
+      const html=doc.documentElement,version=++historyViewGeneration;
+      let changed=false;
+      historyViewHandler=event=>{
+        if(!event.target?.closest?.('.history-record .lists-view-mode__action'))return;
+        changed=true;html.classList.add('bt-history-view-chosen');
+        try{chrome.storage.local.set({[HISTORY_VIEW_KEY]:true});}catch{}
+      };
+      doc.addEventListener('click',historyViewHandler);
+      try{chrome.storage.local.get(HISTORY_VIEW_KEY,result=>{
+        if(version===historyViewGeneration&&!changed&&result&&result[HISTORY_VIEW_KEY])html.classList.add('bt-history-view-chosen');
+      });}catch{}
+    }
     function mount(data = {}, callbacks = {}, theme = 'light', context = {}) {
       restore();
       currentData = data;
@@ -52,6 +68,7 @@
       html.classList.add('bt-native-adapted');
       html.dataset.btNativeRoute = context.route || 'native';
       html.dataset.btTheme = theme;
+      if(context.route==='history')trackHistoryViewChoice();
       createChrome(theme);
       scan();
       observer = new MutationObserver(scanAdded);
@@ -72,6 +89,9 @@
       doc.documentElement.dataset.btTheme = theme;
     }
     function restore() {
+      historyViewGeneration++;
+      if(historyViewHandler)doc.removeEventListener('click',historyViewHandler);
+      historyViewHandler=null;
       if (observer) observer.disconnect();
       observer = null;
       if (layer) layer.remove();
@@ -82,7 +102,7 @@
         if (oldStyle == null) node.removeAttribute('style'); else node.setAttribute('style', oldStyle);
       }
       hidden.clear();
-      doc.documentElement.classList.remove('bt-native-adapted');
+      doc.documentElement.classList.remove('bt-native-adapted','bt-history-view-chosen');
       delete doc.documentElement.dataset.btNativeRoute;
     }
     return { mount, updateChrome, updateTheme, toggleSidebar, closeSidebar, restore };

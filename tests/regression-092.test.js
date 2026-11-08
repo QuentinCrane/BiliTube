@@ -61,7 +61,6 @@ test('background aggregates Bilibili-native home shelves with independent fallba
   assert.match(bg, /pgc\/web\/timeline/);
   assert.match(bg, /x\/web-interface\/popular/);
   assert.match(bg, /x\/polymer\/web-dynamic\/v1\/feed\/all/);
-  assert.match(bg, /Promise\.allSettled/);
 });
 
 test('home renderer interleaves recommendation grids with Bilibili-special shelves', () => {

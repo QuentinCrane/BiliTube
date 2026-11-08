@@ -31,16 +31,13 @@ test('known Bilibili video advertising slots are hidden explicitly', () => {
   }
 });
 
-test('history is a real YouTube-like management page with clear and pause controls', () => {
+test('history management remains Bilibili-native without duplicate write APIs', () => {
   const ui = read('src/core/ui.js');
   const bg = read('src/background.js');
-  assert.match(ui, /clearHistory/);
-  assert.match(ui, /toggleHistoryPause/);
-  assert.match(ui, /清除观看记录/);
-  assert.match(ui, /暂停观看记录|开启观看记录/);
-  assert.match(bg, /type === 'history-status'/);
-  assert.match(bg, /type === 'history-clear'/);
-  assert.match(bg, /type === 'history-toggle'/);
+  const css = read('src/styles/core.css');
+  assert.doesNotMatch(ui, /clearHistory|toggleHistoryPause|function renderHistory/);
+  assert.doesNotMatch(bg, /history-status|history-clear|history-toggle|history\/cursor/);
+  assert.match(css, /data-bt-native-route="history"/);
 });
 
 test('settings opening is delegated to background with a tab fallback', () => {
@@ -82,28 +79,19 @@ test('coin and favorite popovers are not reimplemented by BiliTube', () => {
   for (const action of ['coin','favorite','share','triple']) assert.ok(!watch.includes(`data-action','${action}`));
 });
 
-test('comment payload normalization preserves author, text, relative time and nested replies', () => {
-  const Data = require('../src/core/data.js');
-  const now = 1_800_000_000;
-  const out = Data.normalizeComments({ code:0, data:{ cursor:{ all_count:12 }, replies:[{
-    rpid_str:'99', ctime:now-3600, like:123,
-    member:{ mid:'42', uname:'评论者', avatar:'http://i0.hdslb.com/avatar.jpg' },
-    content:{ message:'这是一条评论' },
-    replies:[{ rpid:100, ctime:now-1800, like:2, member:{ mid:'43', uname:'回复者' }, content:{ message:'回复内容' } }],
-  }] } }, now);
-  assert.equal(out.count, 12);
-  assert.equal(out.items[0].author, '评论者');
-  assert.equal(out.items[0].message, '这是一条评论');
-  assert.equal(out.items[0].time, '1小时前');
-  assert.equal(out.items[0].authorHref, 'https://space.bilibili.com/42');
-  assert.equal(out.items[0].replies[0].author, '回复者');
+test('native Watch interaction APIs are removed while the follow fallback remains', () => {
+  const bg = read('src/background.js');
+  const bridge = read('src/page/bridge.js');
+  assert.doesNotMatch(bg, /watch-comment-add|watch-comments|watch-action|watch-favorite-folders/);
+  assert.doesNotMatch(bridge, /action === 'like'|action === 'coin'|action === 'comment'|installMovedReactEventBridge/);
+  assert.match(bridge, /request\.action !== 'follow'/);
 });
 
 test('BiliTube follow has a same-site MAIN-world relation fallback when extension background cookies are rejected', () => {
   const app = read('src/core/app.js');
   const bridge = read('src/page/bridge.js');
   assert.match(app, /bridgeWrite\(\{action:'follow'/);
-  assert.match(bridge, /action === 'follow'|action==='follow'/);
+  assert.match(bridge, /request\.action !== 'follow'/);
   assert.match(bridge, /x\/relation\/modify/);
   assert.match(bridge, /credentials:'include'/);
 });

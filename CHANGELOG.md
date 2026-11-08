@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- 英文词表对齐 YouTube 说法：`Popular → Trending`、`Your content → You`、`My channel → Your channel`、`Favorites → Playlists`、`Knowledge → Learning`、`Games → Gaming`、`Follow → Subscribe`、`Log in → Sign in`、`Updates → Posts`、`Most viewed → View count`、`Newest → Upload date` 等 52 条，只改 `_locales/en`。顺带修掉搜索落地页把本地化标签当搜索词的问题——英文界面点「Trending」原本会去 B 站搜 "Trending"。
+- 随扩展打包 Roboto（latin 子集变量字体，43 KB，Apache-2.0，`assets/fonts/`）。`--bt-font` 以 Roboto 开头，设置页共用同一份；`web_accessible_resources` 只暴露这一个字体文件，加载失败自动回落系统字体。此前英文界面实际渲染的是 Segoe UI，和 YouTube 的 Roboto 有明显差异。
+- 默认外观改为 YouTube 基线：纯白、中性灰、`#065fd4` 蓝，毛玻璃改成在设置里显式开启（此前默认开启）。浅色基线的强调色从 B 站青 `#00aeec` 换成 YouTube 蓝，导航激活态字重 600 → 500，分组标题在基线模式下 500。已保存过设置的环境保留原值，需要手动关一次毛玻璃。
+- 英文界面补全：`src/core/ui.js` 里 15 个 `T()` 键此前不在任何语言包中，英文界面会整段回落成中文。现已补齐搜索落地页、搜索结果分组、动态页头与计数、动态图片描述等文案，并新增 `invalid_write_request`，取代写请求失败时直接返回给 toast 的中文提示。
+- 英文数字缩写改为按界面语言格式化：此前 `compactNumber` 沿用「万 / 亿」的除数却配 `K` / `B` 后缀，12,345 会显示成 `1.2K`。现在英文走 `Intl.NumberFormat` 紧凑式（`12.3K` / `1.2M` / `1.5B`），中文保持 `1.2万` / `1.2亿`。
+- 计数型文案增加 `_one` 单数变体，`i18n.t()` 在计数为 1 时优先取用，避免英文出现 `1 videos`；两个语言包的键集、占位符与单数变体由 `tests/i18n.test.js` 锁定。
 - 性能：视频封面与 UP 主头像改为按实际显示尺寸向图床请求 `@Ww_Hh_1c.webp` 变体（失败自动回退原图）。实测封面 42.3 KB → 11.1 KB、头像 83.1 KB → 2.9 KB，一屏 12 张卡片的图片体积约降到原来的 1/9。
 - 性能：Hover Preview 取流不再固定先查 `view`。首页/热门/分类的列表项本身带 `cid`，现在直接带到后台，少一次往返；其它列表改用体积约为 `view` 1/3 的 `pagelist`，`view` 仅在最后兜底。
 - 性能：无预览流的 BV 结果缓存 30 s，避免反复为同一个视频重试两次请求；预览 URL 缓存对齐到 150 s，不超过后台 `playurl` 的 180 s TTL。

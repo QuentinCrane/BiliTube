@@ -7,12 +7,15 @@ const Data = require('../src/core/data.js');
 const root = path.resolve(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 
-test('history request respects cursor API page-size limit and keeps type=all', () => {
+test('history stays native and the unreachable replacement API is removed', () => {
   const background = read('src/background.js');
-  assert.match(background, /history\/cursor/);
-  assert.match(background, /ps:'30'/);
-  assert.match(background, /type:'all'/);
-  assert.doesNotMatch(background, /ps=50|ps:'50'/);
+  const app = read('src/core/app.js');
+  const ui = read('src/core/ui.js');
+  const Policy = require('../src/core/policy.js');
+  assert.equal(Policy.resolve({hostname:'www.bilibili.com',pathname:'/history',search:''}).strategy,'adapt');
+  assert.doesNotMatch(background, /type === 'history'|history-clear|history-toggle|history-status/);
+  assert.doesNotMatch(app, /loadMoreHistory|historyVideos|historyCursor/);
+  assert.doesNotMatch(ui, /function renderHistory/);
 });
 
 test('home feed supports successive recommendation pages instead of one cached first page', () => {
@@ -27,21 +30,19 @@ test('home feed supports successive recommendation pages instead of one cached f
 test('dynamic page renders a YouTube-style latest video grid before non-video updates', () => {
   const ui = read('src/core/ui.js');
   assert.match(ui, /最新/);
+  assert.match(ui, /bt-dynamic-hero/);
+  assert.match(ui, /bt-dynamic-section-head/);
   assert.match(ui, /bt-dynamic-video-grid/);
   assert.match(ui, /其他动态|图文动态/);
   assert.match(ui, /!videos\.length&&!others\.length/);
 });
 
-test('related video payload normalizes into creator-aware recommendation cards', () => {
-  assert.equal(typeof Data.normalizeRelated, 'function');
-  const out = Data.normalizeRelated({ code:0, data:[{
-    bvid:'BV1REL', title:'相关视频', pic:'//i0.hdslb.com/r.jpg', duration:181,
-    owner:{mid:42,name:'相关UP',face:'//i0.hdslb.com/u.jpg'}, stat:{view:45678}
-  }]});
-  assert.equal(out.length, 1);
-  assert.equal(out[0].href, 'https://www.bilibili.com/video/BV1REL');
-  assert.equal(out[0].authorHref, 'https://space.bilibili.com/42');
-  assert.equal(out[0].duration, '3:01');
+test('legacy Watch API payloads and normalizers are no longer shipped', () => {
+  const background = read('src/background.js');
+  assert.equal(typeof Data.normalizeRelated, 'undefined');
+  assert.equal(typeof Data.normalizeParts, 'undefined');
+  assert.equal(typeof Data.normalizeComments, 'undefined');
+  assert.doesNotMatch(background, /watch-related|watch-comments|watch-comment-add|watch-favorite-folders|watch-action/);
 });
 
 test('ordinary watch uses Bilibili native recommendations and does not request a duplicate related feed', () => {

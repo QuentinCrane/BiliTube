@@ -10,12 +10,12 @@
     maxVisibleCards: 24, // measured cards per flip; more means a jump is safer
     maxNewCards: 8, // fade-in budget for freshly inserted cards
     minDistance: 0.5, // px; ignore sub-pixel settling
-    duration: 260,
+    duration: 320,
     durationSubtle: 180,
-    enterDuration: 220,
-    enterRise: 8,
+    enterDuration: 280,
+    enterRise: 12,
   };
-  const EASING = 'cubic-bezier(.2,.8,.25,1)';
+  const EASING = 'cubic-bezier(.16,1,.3,1)';
   const REASONS = new Set(['reconcile', 'append', 'route']);
 
   function shouldAnimate(input = {}) {
@@ -158,7 +158,11 @@
         if (rect.top > height + 200) continue; // below the fold: skip the paint
         stop(node);
         track(node, node.animate(
-          [{ opacity: 0, transform: `translateY(${limits.enterRise}px)` }, { opacity: 1, transform: 'translateY(0px)' }],
+          [
+            { opacity: 0, transform: `translateY(${limits.enterRise}px) scale(.985)` },
+            { opacity: 1, transform: 'translateY(-1px) scale(1.002)', offset: .72 },
+            { opacity: 1, transform: 'translateY(0px) scale(1)' },
+          ],
           { duration, easing: EASING, fill: 'none' }
         ));
         count += 1;
@@ -182,5 +186,5 @@
     return { shouldAnimate, allowed, measure, play, enterNew, snapshotCards, prepare, cancel, isActive, destroy, motionMode, reducedMotion };
   }
 
-  return { LIMITS, shouldAnimate, createController };
+  return { LIMITS, EASING, shouldAnimate, createController };
 });

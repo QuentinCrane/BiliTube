@@ -34,7 +34,8 @@ test('native wide web and browser fullscreen remain owned by Bilibili', () => {
   assert.match(css, /bt-player-wide/);
   assert.match(css, /bt-player-web-fullscreen/);
   assert.match(css, /bt-player-browser-fullscreen/);
-  assert.doesNotMatch(watch, /preventDefault|stopPropagation|\.click\(\)/);
+  const modeCode = watch.slice(watch.indexOf('function playerScreens()'),watch.indexOf('function startObservers('));
+  assert.doesNotMatch(modeCode, /preventDefault|stopPropagation|\.click\(\)/);
 });
 
 test('BiliTube cards retain a real watch-later hover control independent of native watch DOM', () => {

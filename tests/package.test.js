@@ -26,10 +26,12 @@ test('app guarantees passthrough cleanup and theme-only updates', () => {
   assert.match(src, /AbortController|generation/);
 });
 
-test('preflight only targets replace routes, not watch', () => {
+test('preflight only targets current replace routes, not watch or native history', () => {
   const src = read('src/page/preflight.js');
   assert.match(src, /replace/);
+  assert.match(src, /upuser\|bangumi\|media_ft/);
   assert.doesNotMatch(src, /\/video\//);
+  assert.doesNotMatch(src, /history/);
 });
 
 
@@ -66,4 +68,21 @@ test('content API client uses runtime messaging instead of page-world fetch', ()
   assert.match(src, /bilitube-api/);
   const bridge = read('src/page/bridge.js');
   assert.doesNotMatch(bridge, /requestDynamic\(|requestWatchLater\(|requestFavorites\(/);
+});
+
+test('manifest exposes the bundled Roboto font to Bilibili pages', () => {
+  const manifest = JSON.parse(read('manifest.json'));
+  const entries = manifest.web_accessible_resources || [];
+  const font = 'assets/fonts/roboto-latin.woff2';
+  assert.ok(entries.some(entry => (entry.resources || []).includes(font)), 'font must be web accessible');
+  assert.ok(entries.some(entry => (entry.matches || []).some(match => match.includes('bilibili.com'))));
+  const bytes = fs.readFileSync(path.join(root, font)).subarray(0, 4).toString('ascii');
+  assert.equal(bytes, 'wOF2', 'bundled file must be a woff2 font');
+
+  for (const sheet of ['src/styles/core.css', 'src/options/options.css']) {
+    const css = read(sheet);
+    assert.match(css, /@font-face\{[^}]*font-family:"Roboto"[^}]*\}/s, sheet);
+    assert.match(css, /url\("\.\.\/\.\.\/assets\/fonts\/roboto-latin\.woff2"\)/, sheet);
+  }
+  assert.match(read('src/styles/core.css'), /--bt-font:"Roboto",/, 'Roboto must lead the content font stack');
 });

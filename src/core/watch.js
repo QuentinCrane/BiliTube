@@ -45,6 +45,8 @@
     let authorSignature = '';
     let authorRetryTimer = null, authorRetries = 0;
     let authorFallbackTimer = null, authorFallback = false;
+    let recommendationListening = false;
+    const recommendationTargets = new Map();
     const marked = new Set();
 
     function first(selectors, root = doc) {
@@ -90,6 +92,55 @@
         for (const { marker } of REGION_DEFS) node.classList.remove(marker);
       }
       marked.clear();
+    }
+
+    function restoreRecommendationTargets() {
+      for (const [link, state] of recommendationTargets) {
+        if (link && link.isConnected !== false && link.getAttribute('target') === state.written) {
+          if (state.original == null) link.removeAttribute('target');
+          else link.setAttribute('target', state.original);
+        }
+      }
+      recommendationTargets.clear();
+    }
+
+    function recommendationLink(event) {
+      const target = event.target && (event.target.closest ? event.target : event.target.parentElement);
+      const link = target && target.closest && target.closest('a[href]');
+      if (!link || !link.closest('.bt-native-watch-related')) return null;
+      try {
+        const url = new URL(link.href, doc.baseURI);
+        if (!/^https?:$/.test(url.protocol) || !/^(?:www\.)?bilibili\.com$/i.test(url.hostname) || !/^\/video\/(?:BV[0-9a-z]+|av\d+)/i.test(url.pathname)) return null;
+      } catch { return null; }
+      return link;
+    }
+
+    function recommendationClick(event) {
+      if (!callbacks.openRecommendationsInNewTab || event.defaultPrevented || event.button !== 0) return;
+      const link = recommendationLink(event);if (!link) return;
+      const enabled = callbacks.openRecommendationsInNewTab();
+      const modified = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
+      if (!enabled && (modified || link.getAttribute('target') !== '_blank')) return;
+      for (const node of recommendationTargets.keys()) if (node.isConnected === false) recommendationTargets.delete(node);
+      const written = enabled ? '_blank' : '_self';
+      if (!recommendationTargets.has(link)) recommendationTargets.set(link, {original:link.getAttribute('target'),written});
+      else recommendationTargets.get(link).written = written;
+      link.setAttribute('target', written);
+      if (!enabled) return;
+      // BPX/Vue also handles this click as an SPA navigation. Let the real
+      // anchor open the tab, while preventing that second navigation.
+      event.stopPropagation();
+    }
+
+    function recommendationKeydown(event) {
+      if (event.key !== 'Enter' || event.defaultPrevented || !callbacks.openRecommendationsInNewTab) return;
+      // Bilibili's global player shortcut can consume Enter before the focused
+      // native anchor activates. Keep the anchor's own browser action intact.
+      if (recommendationLink(event)) event.stopPropagation();
+    }
+
+    function updateRecommendationPreference() {
+      restoreRecommendationTargets();
     }
 
     function discoverRegions() {
@@ -159,6 +210,7 @@
     function ensureWatchLaterButton() {
       if (!authorRow || !watchData || !watchData.bvid || !callbacks.toggleWatchLater) return false;
       const item = { bvid:String(watchData.bvid), aid:Number(watchData.aid || 0), title:String(watchData.title || '') };
+      const actions = authorRow.querySelector('.bt-watch-author-actions') || authorRow;
       let button = authorRow.querySelector('.bt-watchlater-watch');
       if (!button) {
         button = UI.e('button', 'bt-watchlater-watch');
@@ -174,7 +226,7 @@
           button.removeAttribute('aria-busy');
           if (typeof next === 'boolean') syncWatchLaterButton(button, next);
         });
-        authorRow.append(button);
+        actions.append(button);
       }
       button.dataset.bvid = item.bvid;
       button.dataset.aid = String(item.aid || '');
@@ -237,7 +289,8 @@
       name.href = creator.href || '#';
       text.append(name);
       identity.append(avatarLink, text);
-      authorRow.append(identity);
+      const actions = UI.e('div', 'bt-watch-author-actions');
+      authorRow.append(identity, actions);
 
       const mid = creatorMid(creator);
       if (mid && callbacks.followSpace) {
@@ -254,7 +307,7 @@
             authorSignature = [creator.name || '', creator.href || '', creator.avatar || '', creator.following ? '1' : '0'].join('|');
           }
         });
-        authorRow.append(follow);
+        actions.append(follow);
       }
       authorSignature = signature;
       doc.documentElement.classList.add('bt-watch-author-ready');
@@ -420,6 +473,7 @@
       syncPlayerMode();
       doc.documentElement.classList.add('bt-watch-decorated','bt-watch-ready');
       doc.documentElement.classList.remove('bilitube-watch-preflight');
+      if (!recommendationListening) { doc.addEventListener('click', recommendationClick, true); doc.addEventListener('keydown', recommendationKeydown, true); recommendationListening = true; }
       startObservers(ready);
       retryCount = 0;
       return true;
@@ -458,6 +512,9 @@
       retryTimer = null;
       retryCount = 0;
       stopObservers();
+      if (recommendationListening) { doc.removeEventListener('click', recommendationClick, true); doc.removeEventListener('keydown', recommendationKeydown, true); }
+      recommendationListening = false;
+      restoreRecommendationTargets();
       clearMarkers();
       if (authorRow) authorRow.remove();
       authorRow = null;
@@ -474,7 +531,7 @@
       }
     }
 
-    return { mount, updateContext, updateChrome, updateTheme, toggleSidebar, destroy, revealNativeMeta };
+    return { mount, updateContext, updateChrome, updateTheme, updateRecommendationPreference, toggleSidebar, destroy, revealNativeMeta };
   }
 
   return { createDecorator, MAX_RETRIES };

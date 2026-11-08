@@ -117,3 +117,35 @@ node --test tests/*.test.js
 ```
 
 该脚本不依赖 Playwright：图片与接口部分直接向真实 CDN / API 发请求（离线时自动跳过），布局部分用本机 Chrome/Edge 无头模式运行。登录态下的播放与预览起播时间仍需人工按 `docs/TESTING.md` 验收。
+
+## 首屏请求与首页分类（2026-11-02）
+
+- 在页面主体尚未出现时，先检查扩展设置和路由，提前开始首页全部推荐、搜索、动态、稍后再看或空间投稿的首个列表读取。页面外壳、原生节点隐藏和 DOM 修改仍按原来的 `DOMContentLoaded` 时机执行。挂载时只复用同一路由、同一组参数的成功结果；路由改变会取消等待，失败或超过 10 秒的数据会在挂载时重新读取。原网页响应仍有 250 ms 优先等待时间，提前读取可能使扩展回退请求比原网页响应更早发出，因此在部分加载顺序下会增加一次并行读取。
+- 首页专题按启用状态读取并分别缓存。直播、番剧分类分别只读取对应专题；科技等普通分类只读取相应分类接口，失败且没有可用推荐时才回退读取首页推荐。启用先前关闭的专题时会补取数据；手动刷新仍会请求新数据。
+- `scripts/performance_audit.py` 的搜索数据补充了非空关键词，并移除了已改为原生适配的历史页面，使该探针与当前页面行为一致。
+
+在无头 Edge 156.0.4314.58 中，用 `scripts/startup_performance_probe.py` 加载相同的模拟首页：原网页延迟脚本固定约 1,200 ms，扩展接口响应模拟 350 ms，原网页不提供可复用的数据。前后各连续运行 5 次，数值为中位数：
+
+| 指标 | 修改前 | 修改后 |
+| --- | ---: | ---: |
+| `DOMContentLoaded` | 1,281 ms | 1,282 ms |
+| 外壳创建 | 1,380 ms | 1,397 ms |
+| 第一张真实卡片插入 DOM | 2,052 ms | 1,496 ms |
+
+这组数据只说明请求与延迟脚本重叠时的效果；卡片时间不是首次绘制或真实网络下的加载时间。该修改并未提前挂载外壳，实际收益取决于网页脚本、原生数据和网络响应时序。
+
+在临时未登录扩展配置下访问真实 Bilibili 首页、科技及直播分类，三页均显示内容且未记录到页面脚本异常。科技分类的扩展后台读取记录中只出现分类排行、账号及订阅接口；直播分类复用了此前缓存。登录态私人数据和写操作未做生产验收。
+
+复测命令：
+
+```powershell
+python scripts/startup_performance_probe.py --runs 3
+python scripts/performance_audit.py --runs 3
+python scripts/refresh_experience_smoke.py
+python scripts/feature_parity_smoke.py
+python scripts/media_continuity_smoke.py
+node --test tests/*.test.js
+node scripts/verify.mjs
+```
+
+本次模拟基线和修改后原始结果分别记录在 `output/startup-performance/baseline-final.json`、`output/startup-performance/optimized-final.json`；该目录由 Git 忽略。
