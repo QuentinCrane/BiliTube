@@ -26,12 +26,15 @@ def main():
     parser.add_argument('--output',default=str(ROOT/'output'/'watch-navigation'))
     parser.add_argument('--browser',default=os.environ.get('BROWSER_EXECUTABLE',r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
     args=parser.parse_args();output=Path(args.output);output.mkdir(parents=True,exist_ok=True);steps=[]
-    report={'kind':'actual unpacked extension, public related-video clicks, temporary logged-out profile','steps':steps}
+    report={'kind':'actual unpacked extension, same-tab preference, public related-video clicks, temporary logged-out profile','steps':steps}
     with sync_playwright() as p:
         with tempfile.TemporaryDirectory(prefix='watch-navigation-',dir=ROOT/'output') as profile:
             context=p.chromium.launch_persistent_context(profile,executable_path=args.browser,headless=True,ignore_default_args=['--disable-extensions','--disable-component-extensions-with-background-pages'],args=[f'--disable-extensions-except={ROOT}',f'--load-extension={ROOT}'],viewport={'width':1440,'height':900})
             try:
                 report['browser']=context.browser.version
+                workers=[worker for worker in context.service_workers if '/src/background.js' in worker.url]
+                worker=workers[0] if workers else context.wait_for_event('serviceworker',predicate=lambda item:'/src/background.js' in item.url,timeout=15000)
+                worker.evaluate("() => chrome.storage.local.set({bilitubeCoreSettings:{openRecommendationsInNewTab:false}})")
                 context.add_init_script(MUTATIONS)
                 page=context.new_page();page.goto(args.url,wait_until='domcontentloaded',timeout=25000)
                 for step in range(args.clicks+1):
@@ -54,7 +57,7 @@ def main():
                     if len(context.pages)>count:page=context.pages[-1]
                     page.mouse.move(10,10)
                     page.wait_for_function('previous=>location.pathname!==previous',arg=result['path'],timeout=15000)
-                report['passed']=len(steps)==args.clicks+1 and all(s['playerAboveTitle'] for s in steps)
+                report['passed']=len(steps)==args.clicks+1 and all(s['playerAboveTitle'] for s in steps) and all(s['sameDocumentAsPrevious'] for s in steps[1:])
                 (output/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
                 if not report['passed']:raise AssertionError('Missing navigation steps or player displaced; see report.json')
             finally:context.close()

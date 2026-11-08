@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- 英文词表对齐 YouTube 说法：`Popular → Trending`、`Your content → You`、`My channel → Your channel`、`Favorites → Playlists`、`Knowledge → Learning`、`Games → Gaming`、`Follow → Subscribe`、`Log in → Sign in`、`Updates → Posts`、`Most viewed → View count`、`Newest → Upload date` 等 52 条，只改 `_locales/en`。顺带修掉搜索落地页把本地化标签当搜索词的问题——英文界面点「Trending」原本会去 B 站搜 "Trending"。
+- 随扩展打包 Roboto（latin 子集变量字体，43 KB，Apache-2.0，`assets/fonts/`）。`--bt-font` 以 Roboto 开头，设置页共用同一份；`web_accessible_resources` 只暴露这一个字体文件，加载失败自动回落系统字体。此前英文界面实际渲染的是 Segoe UI，和 YouTube 的 Roboto 有明显差异。
+- 默认外观改为 YouTube 基线：纯白、中性灰、`#065fd4` 蓝，毛玻璃改成在设置里显式开启（此前默认开启）。浅色基线的强调色从 B 站青 `#00aeec` 换成 YouTube 蓝，导航激活态字重 600 → 500，分组标题在基线模式下 500。已保存过设置的环境保留原值，需要手动关一次毛玻璃。
+- 英文界面补全：`src/core/ui.js` 里 15 个 `T()` 键此前不在任何语言包中，英文界面会整段回落成中文。现已补齐搜索落地页、搜索结果分组、动态页头与计数、动态图片描述等文案，并新增 `invalid_write_request`，取代写请求失败时直接返回给 toast 的中文提示。
+- 英文数字缩写改为按界面语言格式化：此前 `compactNumber` 沿用「万 / 亿」的除数却配 `K` / `B` 后缀，12,345 会显示成 `1.2K`。现在英文走 `Intl.NumberFormat` 紧凑式（`12.3K` / `1.2M` / `1.5B`），中文保持 `1.2万` / `1.2亿`。
+- 计数型文案增加 `_one` 单数变体，`i18n.t()` 在计数为 1 时优先取用，避免英文出现 `1 videos`；两个语言包的键集、占位符与单数变体由 `tests/i18n.test.js` 锁定。
+- 性能：视频封面与 UP 主头像改为按实际显示尺寸向图床请求 `@Ww_Hh_1c.webp` 变体（失败自动回退原图）。实测封面 42.3 KB → 11.1 KB、头像 83.1 KB → 2.9 KB，一屏 12 张卡片的图片体积约降到原来的 1/9。
+- 性能：Hover Preview 取流不再固定先查 `view`。首页/热门/分类的列表项本身带 `cid`，现在直接带到后台，少一次往返；其它列表改用体积约为 `view` 1/3 的 `pagelist`，`view` 仅在最后兜底。
+- 性能：无预览流的 BV 结果缓存 30 s，避免反复为同一个视频重试两次请求；预览 URL 缓存对齐到 150 s，不超过后台 `playurl` 的 180 s TTL。
+- 新增 `scripts/resource_audit.py`：可复现地测量图片字节、预览查询字节和 500 张卡片的挂载/节点/堆基线；`tests/resource-budget.test.js` 固化上述契约。
+- 试验并按实测结果放弃：按列表长度额外启用 `content-visibility` 在无头 Chromium 中没有可复现收益，未纳入仓库。
+- 新增 `src/core/motion.js`：同一路由的数据刷新在 `Reconcile.update()` 前后测量可见卡片矩形，用 Web Animations API 做 additive FLIP，卡片、图片和 Hover Preview 节点全程复用，不重建媒体。
+- 分页追加只让新卡片淡入，旧卡片不再重复进场；换路由时只为工具条、分类和标题这类轻量 chrome 播放短暂进入动画，避免为整屏列表创建超高的合成层。
+- 动效统一由一个决策点控制：`motionMode=none`、系统减少动态效果、正在播放的 Hover Preview、超过 24 张可见卡片或主题 View Transition 进行中，都会跳过动画并直接呈现最终布局。
+- 主题 Reveal 仍然独占唯一一次根 View Transition；开始前主动取消局部 FLIP 并清理 transform，局部动画失败时只是失去过渡，内容与交互不受影响。
+- 修正路由进入动画的类名不一致（`is-route-entering` 与样式里的 `bt-route-entering`），此前该动画实际从未触发。
+- 视觉层回到 YouTube Desktop 基线：撤回上一轮引入的胶囊 chips、渐变品牌标、封面描边与悬停抬升、更小的标题/头像尺寸、13px 侧栏分组标题等改动，恢复 12px 媒体圆角、8px 矩形 chips、36px 头像、16px 侧栏分组标题与原始卡片排版。
+- 修复侧边栏展开/收起没有动画：一条用于「视觉风格切换」的 `transition:opacity` 规则覆盖了 `.bt-sidebar` 的宽度过渡与抽屉的位移动画。现在侧栏宽度、`.bt-body` 的 grid 轨道和抽屉 `transform` 一起以 200ms 过渡，内容列跟随侧栏滑动而不是跳变；首屏恢复上次的折叠状态仍为瞬时，不会播放一次折叠动画。
+- 保留两处真正的修正：骨架屏头像占位补上 36px 尺寸（此前高度为 0，加载态与真实卡片不对齐），收藏夹选中项的计数文字跟随选中色以提高可读性。
+- `regression-0110-youtube-parity` 增加基线锁定断言：`--bt-media-radius` 只允许声明一次且为 12px、卡片头像 36px、chips 8px 且不得出现胶囊圆角，避免后续「美化」再次悄悄改变版式基线。
+- 新增 `scripts/motion_smoke.py`（无头 Chromium 数值断言）与 `scripts/ui_preview.py`（离线截图与手动演示），并补充 `tests/motion.test.js`，覆盖策略矩阵、FLIP 数值、取消清理、追加淡入和无 WAAPI 降级。
+
 ## 0.12.5
 
 - 修复播放页内推荐视频同页切换时，Watch 装饰器先于原站 Vue 更新被销毁重建、播放器节点重建后脱离布局的问题；保留跨视频导航的布局与观察器，并跟踪 SPA 根节点替换恢复原生播放器标记。

@@ -21,9 +21,37 @@
     const url = absoluteUrl(value);
     return url.replace(/^http:(?=\/\/[^/]*(?:hdslb\.com|bilivideo\.com))/i, 'https:');
   }
+  // 中文按「万 / 亿」缩写；其他语言交给 Intl 的紧凑式（12K / 1.2M / 3B）。
+  // 若沿用 10000 的除数再配 K 后缀，12,345 会显示成错误的 1.2K。
+  let numberUnits = null;
+  function numberFormat() {
+    const i18n = typeof globalThis !== 'undefined' && globalThis.BiliTubeI18n;
+    if (!i18n || typeof i18n.getUILanguage !== 'function') return null;
+    if (numberUnits && numberUnits.source === i18n) return numberUnits;
+    const locale = String(i18n.getUILanguage() || 'zh-CN');
+    const latin = !/^zh/i.test(locale);
+    let formatter = null;
+    if (latin) {
+      try { formatter = new Intl.NumberFormat(locale, { notation:'compact', maximumFractionDigits:1 }); } catch { formatter = null; }
+    }
+    numberUnits = { source:i18n, latin, formatter };
+    return numberUnits;
+  }
+  function compactLatin(n) {
+    const units = numberFormat();
+    if (units && units.formatter) {
+      try { return units.formatter.format(n); } catch {}
+    }
+    if (n >= 1000000000) return `${(n / 1000000000).toFixed(n >= 10000000000 ? 0 : 1).replace(/\.0$/, '')}B`;
+    if (n >= 1000000) return `${(n / 1000000).toFixed(n >= 10000000 ? 0 : 1).replace(/\.0$/, '')}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '')}K`;
+    return String(Math.round(n));
+  }
   function compactNumber(value) {
     const n = Number(value || 0);
     if (!Number.isFinite(n)) return '';
+    const units = numberFormat();
+    if (units && units.latin) return compactLatin(n);
     if (n >= 100000000) return `${(n / 100000000).toFixed(n >= 1000000000 ? 0 : 1).replace(/\.0$/, '')}${T('unit_billion','亿')}`;
     if (n >= 10000) return `${(n / 10000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, '')}${T('unit_ten_thousand','万')}`;
     return String(Math.round(n));
@@ -108,6 +136,9 @@
         kind: 'video', bvid, title, category, categoryKey,
         href: `https://www.bilibili.com/video/${bvid}`,
         thumbnail: mediaUrl(item.pic),
+        // Feed payloads already carry the first page id; the Hover Preview uses
+        // it to skip a lookup round trip before it can request the stream.
+        cid: Number(item.cid || raw && raw.cid) || 0,
         duration: formatDuration(item.duration || item.duraion),
         author: String(owner.name || '').trim(),
         authorMid: owner.mid ? String(owner.mid) : '',
@@ -123,33 +154,6 @@
       ? (Array.isArray(payload.data.list) ? payload.data.list : Array.isArray(payload.data.item) ? payload.data.item : [])
       : [];
     return normalizeHome({ code:0, data:{ item:list } }, nowSeconds).map(item => ({ ...item, categoryKey:String(categoryKey || item.categoryKey || '') }));
-  }
-  function normalizeHistory(payload) {
-    const items = payload && payload.code === 0 && payload.data && Array.isArray(payload.data.list) ? payload.data.list : [];
-    return items.map((item) => {
-      const h = item && item.history || {};
-      let href = '';
-      if (h.business === 'archive' && h.bvid) href = `https://www.bilibili.com/video/${h.bvid}${Number(h.page || 0) > 1 ? `?p=${Number(h.page)}` : ''}`;
-      else if (h.business === 'pgc' && h.epid) href = `https://www.bilibili.com/bangumi/play/ep${h.epid}`;
-      else if (h.business === 'live' && h.oid) href = `https://live.bilibili.com/${h.oid}`;
-      else href = absoluteUrl(item && item.uri);
-      if (!item || !item.title || !href) return null;
-      const durationSeconds = Math.max(0, Number(item.duration || 0));
-      const rawProgress = Number(item.progress || 0);
-      const progressSeconds = rawProgress < 0 ? durationSeconds : Math.max(0, rawProgress);
-      const progress = durationSeconds > 0 ? Math.max(0, Math.min(1, progressSeconds / durationSeconds)) : 0;
-      const progressText = durationSeconds > 0 ? T('watched_percent',`已观看 ${Math.round(progress * 100)}%`,[Math.round(progress * 100)]) : (progressSeconds ? T('watched_duration',`已观看 ${formatDuration(progressSeconds)}`,[formatDuration(progressSeconds)]) : T('watched','已观看'));
-      return {
-        kind: h.business === 'live' ? 'live' : h.business === 'pgc' ? 'bangumi' : 'video',
-        bvid: String(h.bvid || ''), title: String(item.title), href,
-        thumbnail: mediaUrl(item.cover || (Array.isArray(item.covers) ? item.covers[0] : '')),
-        duration: formatDuration(durationSeconds),
-        author: String(item.author_name || ''),
-        authorHref: item.author_mid ? `https://space.bilibili.com/${item.author_mid}` : '',
-        meta: [String(h.part || '').trim(), progressText].filter(Boolean).join(' · '),
-        progress, progressSeconds, viewedAt: Number(item.view_at || 0),
-      };
-    }).filter(Boolean);
   }
   function normalizeSpaceProfile(payload, mid) {
     if (!payload || payload.code !== 0 || !payload.data) return null;
@@ -239,6 +243,9 @@
       if (draw && Array.isArray(draw.items)) output.images = draw.items.map(x => mediaUrl(x && x.src)).filter(Boolean);
       if (opus && Array.isArray(opus.pics) && !output.images.length) output.images = opus.pics.map(x => mediaUrl(x && (x.url || x.src))).filter(Boolean);
       if (archive && archive.bvid && archive.title) {
+        const rawViews = archive.stat && (archive.stat.play ?? archive.stat.view);
+        const views = rawViews == null ? '' : String(rawViews).trim();
+        const viewText = views ? (views.endsWith(T('views','播放')) ? views : `${views}${T('views','播放')}`) : '';
         output.video = {
           kind: 'video', bvid: String(archive.bvid), title: String(archive.title),
           href: `https://www.bilibili.com/video/${archive.bvid}`,
@@ -246,7 +253,7 @@
           thumbnail: mediaUrl(archive.cover), duration: formatDuration(archive.duration),
           author: output.author, avatar: output.avatar, authorHref: output.authorHref,
           publishedAt,
-          meta: [String(archive.stat && (archive.stat.play || archive.stat.view) || '').trim(), publishedText].filter(Boolean).map((value,index)=>index===0&&!value.endsWith(T('views','播放'))?`${value}${T('views','播放')}`:value).join(' · '),
+          meta: [viewText, publishedText].filter(Boolean).join(' · '),
         };
       }
       return output.author || output.text || output.images.length || output.video ? output : null;
@@ -318,39 +325,6 @@
   }
 
 
-  function normalizeRelated(payload, nowSeconds = Math.floor(Date.now() / 1000)) {
-    const list = payload && payload.code === 0 && Array.isArray(payload.data) ? payload.data : [];
-    return list.map((item) => {
-      const owner = item && item.owner || {};
-      const bvid = String(item && item.bvid || '').trim();
-      const title = String(item && item.title || '').trim();
-      if (!bvid || !title) return null;
-      const publishedAt = timestampSeconds(item.pubdate || item.ctime);
-      return {
-        kind:'video', bvid, title,
-        href:`https://www.bilibili.com/video/${bvid}`,
-        thumbnail:mediaUrl(item.pic), duration:formatDuration(item.duration),
-        author:String(owner.name || ''), avatar:mediaUrl(owner.face),
-        authorHref:owner.mid ? `https://space.bilibili.com/${owner.mid}` : '',
-        publishedAt,
-        meta:[item.stat && item.stat.view != null ? `${compactNumber(item.stat.view)}${T('views','播放')}` : '', formatRelativeTime(publishedAt, nowSeconds)].filter(Boolean).join(' · '),
-      };
-    }).filter(Boolean);
-  }
-  function normalizeParts(payload) {
-    const data = payload && payload.code === 0 && payload.data ? payload.data : {};
-    const bvid = String(data.bvid || '').trim();
-    const pages = Array.isArray(data.pages) ? data.pages : [];
-    if (!bvid || pages.length < 2) return [];
-    return pages.map((page, index) => ({
-      page:Number(page.page || index + 1),
-      cid:Number(page.cid || 0),
-      title:String(page.part || `P${index + 1}`),
-      duration:formatDuration(page.duration),
-      href:`https://www.bilibili.com/video/${bvid}?p=${Number(page.page || index + 1)}`,
-    }));
-  }
-
   function normalizeSearch(payload, nowSeconds = Math.floor(Date.now() / 1000)) {
     const list = payload && payload.code === 0 && payload.data && Array.isArray(payload.data.result) ? payload.data.result : [];
     return list.map((item) => {
@@ -359,15 +333,26 @@
       if (!bvid || !title) return null;
       const publishedAt = timestampSeconds(item.pubdate || item.pub_time || item.ctime);
       return {
-        kind:'video', bvid, title,
+        kind:'video', bvid, aid:Number(item.aid || 0), title,
         href:`https://www.bilibili.com/video/${bvid}`,
         thumbnail:mediaUrl(item.pic), duration:String(item.duration || ''),
         author:stripHtml(item.author || item.up_name || ''), avatar:mediaUrl(item.upic || item.face || ''),
         authorHref:item.mid ? `https://space.bilibili.com/${item.mid}` : '',
-        publishedAt,
-        meta:[item.play != null ? `${compactNumber(item.play)}${T('views','播放')}` : '', formatRelativeTime(publishedAt, nowSeconds)].filter(Boolean).join(' · '),
+        publishedAt, description:stripHtml(item.description || item.desc || ''),
+        meta:String(item.meta || '').trim() || [item.viewText?`${item.viewText}${T('views','播放')}`:item.play != null ? `${compactNumber(item.play)}${T('views','播放')}` : '', formatRelativeTime(publishedAt, nowSeconds)||String(item.publishedText||'').trim()].filter(Boolean).join(' · '),
       };
     }).filter(Boolean);
+  }
+  function normalizeSearchDetail(payload, nowSeconds = Math.floor(Date.now() / 1000)) {
+    const item=payload&&payload.code===0&&payload.data;
+    if(!item)return null;
+    const owner=item.owner||{}, publishedAt=timestampSeconds(item.pubdate||item.ctime);
+    return {
+      aid:Number(item.aid||0), avatar:mediaUrl(owner.face),
+      author:stripHtml(owner.name||''), authorHref:owner.mid?`https://space.bilibili.com/${owner.mid}`:'',
+      description:stripHtml(item.desc||''), publishedAt,
+      meta:[item.stat&&item.stat.view!=null?`${compactNumber(item.stat.view)}${T('views','播放')}`:'',formatRelativeTime(publishedAt,nowSeconds)].filter(Boolean).join(' · '),
+    };
   }
   function normalizeSearchAll(payload, nowSeconds = Math.floor(Date.now() / 1000)) {
     const sections = payload && payload.code === 0 && payload.data && Array.isArray(payload.data.result) ? payload.data.result : [];
@@ -432,38 +417,31 @@
       seen.add(value); return true;
     }).slice(0, 10);
   }
-  function normalizeComments(payload, nowSeconds = Math.floor(Date.now() / 1000)) {
-    const data = payload && payload.code === 0 && payload.data ? payload.data : {};
-    const replies = Array.isArray(data.replies) ? data.replies : [];
-    const normalizeReply = (reply) => {
-      const member = reply && reply.member || {};
-      const content = reply && reply.content || {};
-      const mid = String(member.mid || '').trim();
-      return {
-        id:String(reply && (reply.rpid_str || reply.rpid) || ''),
-        author:String(member.uname || member.name || T('user','用户')),
-        avatar:mediaUrl(member.avatar || member.face || ''),
-        authorHref:mid ? `https://space.bilibili.com/${mid}` : '',
-        message:String(content.message || ''),
-        time:formatRelativeTime(reply && reply.ctime, nowSeconds),
-        likes:compactNumber(reply && reply.like),
-      };
-    };
-    const items = replies.map((reply) => {
-      const item = normalizeReply(reply);
-      const nested = Array.isArray(reply && reply.replies) ? reply.replies : [];
-      item.replies = nested.slice(0, 3).map(normalizeReply);
-      return item;
-    });
-    const count = Number(data.cursor && data.cursor.all_count || data.page && data.page.count || items.length || 0);
-    let next = '';
-    try {
-      const paginationReply = data.cursor && data.cursor.pagination_reply;
-      next = paginationReply && paginationReply.next_offset ? String(paginationReply.next_offset) : '';
-    } catch {}
-    return { items, count, next };
+  function normalizeSearchDefaultWord(payload) {
+    const data = payload && payload.code === 0 && payload.data ? payload.data : null;
+    return data ? stripHtml(data.show_name || data.name || '') : '';
   }
-
+  function normalizeSearchTrending(payload) {
+    const trending = payload && payload.code === 0 && payload.data && payload.data.trending ? payload.data.trending : null;
+    if (!trending) return { title:'', items:[] };
+    const list = Array.isArray(trending.list) ? trending.list : [];
+    const pinned = Array.isArray(trending.top_list) ? trending.top_list : [];
+    const items = [], seen = new Set();
+    for (const raw of pinned.concat(list)) {
+      const keyword = stripHtml(raw && (raw.keyword || raw.name || raw.show_name));
+      if (!keyword || seen.has(keyword)) continue;
+      seen.add(keyword);
+      items.push({
+        keyword,
+        label: stripHtml(raw.show_name || raw.name || keyword),
+        icon: mediaUrl(raw.icon || ''),
+        position: items.length + 1,
+        pinned: pinned.includes(raw),
+      });
+      if (items.length >= 10) break;
+    }
+    return { title: stripHtml(trending.title || ''), items };
+  }
   function normalizeLiveShelf(payload) {
     const list = payload && payload.code === 0 && payload.data && Array.isArray(payload.data.recommend_room_list) ? payload.data.recommend_room_list : [];
     return list.map((item) => {
@@ -534,8 +512,8 @@
       kind: 'video', bvid: String(item.bvid || ''), title: String(item.title).trim(),
       href: absoluteUrl(item.href), thumbnail: mediaUrl(item.thumbnail), duration: String(item.duration || ''),
       author: String(item.author || '').trim(), avatar: mediaUrl(item.avatar),
-      authorHref: absoluteUrl(item.authorHref), meta: String(item.meta || '').trim(),
+      authorHref: absoluteUrl(item.authorHref), meta: String(item.meta || '').trim(), description:stripHtml(item.description||''),
     };
   }
-  return { absoluteUrl, mediaUrl, compactNumber, formatDuration, formatRelativeTime, stripHtml, homeCategoryKey, normalizeAccount, normalizeHome, normalizeHomeCategory, normalizeHistory, normalizeSpaceProfile, normalizeSpaceArchives, normalizeSubscriptions, normalizeDynamic, normalizeDynamicSubscriptions, normalizeWatchLater, normalizeFavoriteFolders, normalizeFavoriteResources, normalizeRelated, normalizeParts, normalizeSearch, normalizeSearchAll, normalizeSearchUsers, normalizeSearchMedia, normalizeSearchSuggestions, normalizeComments, normalizeLiveShelf, normalizeBangumiShelf, normalizePopularShelf, normalizeFollowedVideoShelf, normalizeSearchItem };
+  return { absoluteUrl, mediaUrl, compactNumber, formatDuration, formatRelativeTime, stripHtml, homeCategoryKey, normalizeAccount, normalizeHome, normalizeHomeCategory, normalizeSpaceProfile, normalizeSpaceArchives, normalizeSubscriptions, normalizeDynamic, normalizeDynamicSubscriptions, normalizeWatchLater, normalizeFavoriteFolders, normalizeFavoriteResources, normalizeSearch, normalizeSearchDetail, normalizeSearchAll, normalizeSearchUsers, normalizeSearchMedia, normalizeSearchSuggestions, normalizeSearchDefaultWord, normalizeSearchTrending, normalizeLiveShelf, normalizeBangumiShelf, normalizePopularShelf, normalizeFollowedVideoShelf, normalizeSearchItem };
 });

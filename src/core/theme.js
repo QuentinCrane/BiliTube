@@ -11,28 +11,16 @@
   function nextExplicit(currentResolved) { return currentResolved === 'dark' ? 'light' : 'dark'; }
   function createRevealController(doc){
     let active=null,version=0;
-    const paused=new Set();
-    function suspendDecorators(){
-      if(typeof doc.getAnimations!=='function')return;
-      for(const animation of doc.getAnimations()){
-        const effect=animation.effect;
-        if(animation.playState!=='running'||!effect||effect.pseudoElement||effect.target===doc.documentElement)continue;
-        try{animation.pause();paused.add(animation);}catch{}
-      }
-    }
-    function resumeDecorators(){
-      for(const animation of paused)if(animation.playState==='paused'){try{animation.play();}catch{}}
-      paused.clear();
-    }
     function run(commit,_origin,animate=true){
       const current=++version,html=doc.documentElement;
       if(active){try{active.skipTransition();}catch{}active=null;}
-      const finish=()=>{if(current===version){active=null;html.classList.remove('bt-theme-reveal','bt-theme-switching','bt-theme-animating');resumeDecorators();}};
+      const finish=()=>{if(current===version){active=null;html.classList.remove('bt-theme-reveal','bt-theme-switching','bt-theme-animating');}};
       if(!animate||typeof doc.startViewTransition!=='function'||typeof html.animate!=='function'){finish();commit();return;}
-      suspendDecorators();
-      html.classList.add('bt-theme-reveal','bt-theme-switching','bt-theme-animating');
+      html.classList.add('bt-theme-reveal');
       try{
-        const transition=doc.startViewTransition(()=>{if(current===version)commit();});active=transition;
+        // Defer subtree style changes until the snapshot update. Enumerating
+        // document animations here forces style/layout for offscreen cards.
+        const transition=doc.startViewTransition(()=>{if(current===version){html.classList.add('bt-theme-switching','bt-theme-animating');commit();}});active=transition;
         transition.ready.then(()=>{
           if(current!==version)return;
           // Only composite the old snapshot's opacity. Animating a viewport-
@@ -44,7 +32,7 @@
         return transition.finished.catch(()=>{});
       }catch{finish();commit();}
     }
-    function cancel(){version++;if(active){try{active.skipTransition();}catch{}active=null;}doc.documentElement.classList.remove('bt-theme-reveal','bt-theme-switching','bt-theme-animating');resumeDecorators();}
+    function cancel(){version++;if(active){try{active.skipTransition();}catch{}active=null;}doc.documentElement.classList.remove('bt-theme-reveal','bt-theme-switching','bt-theme-animating');}
     return {run,cancel};
   }
   return { resolve, nextExplicit, createRevealController };

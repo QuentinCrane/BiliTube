@@ -55,6 +55,9 @@ test('infinite loading covers search, favorites and channel uploads too', () => 
 test('search page exposes YouTube-like result filters without faking unsupported categories', () => {
   const ui = read('src/core/ui.js');
   assert.match(ui,/bt-search-tabs/);
+  assert.match(ui,/bt-search-tab/);
+  assert.match(ui,/bt-search-landing/);
+  assert.match(ui,/bt-filter-label/);
   assert.match(ui,/视频/);
   assert.match(ui,/用户/);
   assert.match(ui,/番剧/);

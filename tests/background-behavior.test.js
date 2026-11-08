@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../src/background.js'), 'utf8');
 
-function createHarness() {
+function createHarness(mockFetch) {
   const urls = [];
   let listener = null;
   const sandbox = {
@@ -20,6 +20,7 @@ function createHarness() {
     encodeURIComponent,
     fetch: async (url) => {
       urls.push(String(url));
+      if (mockFetch) return mockFetch(String(url));
       return { ok:true, json:async()=>({ code:0, data:{ item:[], list:[], cursor:{} } }) };
     },
     chrome:{ runtime:{ onMessage:{ addListener(fn){ listener=fn; } } } },
@@ -44,16 +45,11 @@ test('refresh bypasses cached reads and invalidates later pages of that feed',as
   await h.request('dynamic',{offset:'next'});assert.equal(h.urls.length,4);
 });
 
-test('history background request uses legal 30-item cursor page and cursor parameters', async () => {
+test('history replacement request is retired in favor of native history', async () => {
   const h=createHarness();
-  await h.request('history',{max:123,business:'archive',viewAt:456});
-  const url=new URL(h.urls.at(-1));
-  assert.equal(url.pathname,'/x/web-interface/history/cursor');
-  assert.equal(url.searchParams.get('ps'),'30');
-  assert.equal(url.searchParams.get('type'),'all');
-  assert.equal(url.searchParams.get('max'),'123');
-  assert.equal(url.searchParams.get('business'),'archive');
-  assert.equal(url.searchParams.get('view_at'),'456');
+  const result=await h.request('history',{max:123,business:'archive',viewAt:456});
+  assert.equal(result.data,null);
+  assert.equal(h.urls.length,0);
 });
 
 test('home page two generates a distinct fresh_idx request', async () => {
@@ -74,11 +70,52 @@ test('home category uses a public region ranking endpoint', async () => {
   assert.equal(url.searchParams.get('type'),'all');
 });
 
+test('home sections request only selected sources and reuse their caches independently', async () => {
+  const h=createHarness();
+  const live=await h.request('home-sections',{sections:['live','live','invalid']});
+  assert.deepEqual(Object.keys(live.data),['live']);
+  assert.equal(h.urls.length,1);
+  assert.ok(h.urls[0].includes('getMoreRecList'));
+  await h.request('home-sections',{sections:['live','popular']});
+  assert.equal(h.urls.length,2);
+  assert.ok(h.urls[1].includes('/popular'));
+  await h.request('home-sections',{sections:['live'],forceFresh:true});
+  assert.equal(h.urls.length,3);
+  await h.request('home-sections',{sections:[]});
+  assert.equal(h.urls.length,3);
+});
+
+test('a slow or failed shelf does not block another category or poison its cache', async () => {
+  let finishPopular, liveAttempts=0;
+  const h=createHarness(async url=>{
+    if(url.includes('/popular'))await new Promise(resolve=>{finishPopular=resolve;});
+    if(url.includes('getMoreRecList')&&++liveAttempts===1)throw new Error('unavailable');
+    return {ok:true,json:async()=>({code:0,data:{list:[]}})};
+  });
+  const combined=h.request('home-sections',{sections:['live','popular']});
+  while(!finishPopular)await new Promise(resolve=>setImmediate(resolve));
+  const live=await h.request('home-sections',{sections:['live']});
+  assert.equal(live.data.live.code,0);
+  assert.equal(liveAttempts,2);
+  finishPopular();
+  const result=await combined;
+  assert.equal(result.data.live,null);
+  assert.equal(result.data.popular.code,0);
+  await h.request('home-sections',{sections:['live']});
+  assert.equal(liveAttempts,2);
+});
+
 test('account background request uses the Bilibili nav endpoint', async () => {
   const h=createHarness();
   await h.request('account');
   const url=new URL(h.urls.at(-1));
   assert.equal(url.pathname,'/x/web-interface/nav');
+});
+
+test('account and WBI startup share one concurrent nav request', async () => {
+  const h=createHarness();
+  await Promise.all([h.request('home'),h.request('account')]);
+  assert.equal(h.urls.filter(url=>new URL(url).pathname==='/x/web-interface/nav').length,1);
 });
 
 test('search forwards sort and duration and isolates cached variants', async () => {
@@ -92,6 +129,14 @@ test('search forwards sort and duration and isolates cached variants', async () 
   await h.request('search',{keyword:'bad',category:'video',order:'invalid',duration:99});
   const fallback=new URL(h.urls.at(-1));
   assert.equal(fallback.searchParams.get('order'),'totalrank');assert.equal(fallback.searchParams.get('duration'),'0');
+});
+
+test('visible search detail reads share a bounded video-view cache and reject invalid IDs', async () => {
+  const h=createHarness();
+  await Promise.all([h.request('search-detail',{bvid:'BVtest123'}),h.request('search-detail',{bvid:'BVtest123'})]);
+  assert.equal(h.urls.length,1);assert.equal(new URL(h.urls[0]).pathname,'/x/web-interface/view');
+  assert.equal(new URL(h.urls[0]).searchParams.get('bvid'),'BVtest123');
+  await h.request('search-detail',{bvid:'BVtest/../../'});assert.equal(h.urls.length,1);
 });
 
 test('background cache stays bounded and pending reads cannot restore invalidated entries', async () => {

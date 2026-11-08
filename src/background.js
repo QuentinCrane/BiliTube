@@ -79,7 +79,8 @@ async function getWbiKeys() {
   if (wbiKeysPromise) return wbiKeysPromise;
   wbiKeysPromise = (async () => {
     try {
-      const nav = await json('https://api.bilibili.com/x/web-interface/nav');
+      // Account chrome and WBI signing need the same nav response at startup.
+      const nav = await cached('account', 30000, () => json('https://api.bilibili.com/x/web-interface/nav'));
       const keys = globalThis.BiliTubeWbi && globalThis.BiliTubeWbi.keysFromNav(nav);
       if (!keys) return null;
       wbiKeysCache = { ...keys, timestamp:Date.now() };
@@ -114,14 +115,6 @@ async function resolveVideoIdentity(params = {}) {
   }
   return { aid, bvid, view };
 }
-async function freshView(bvid, aid) {
-  try {
-    if (bvid) return await json(`https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`);
-    if (aid) return await json(`https://api.bilibili.com/x/web-interface/view?aid=${encodeURIComponent(aid)}`);
-  } catch {}
-  return null;
-}
-
 async function handle(type, params = {}) {
   // Drop later pages too, so pagination after a refresh uses the new feed.
   // The cache's entry check prevents older reads from refilling these entries.
@@ -132,7 +125,7 @@ async function handle(type, params = {}) {
       watchlater:['watchlater'], favorites:['favorite-folders:','favorite-resources:'],
       'space-profile':[`space-profile:${digits(params.mid)}`],
       'space-archives':[`space-archives:${digits(params.mid)}:`],
-      account:['account'], subscriptions:['subscriptions'], history:['history:'],
+      account:['account'], subscriptions:['subscriptions'],
     }[type] || [];
     for (const key of cache.keys()) if (prefixes.some(prefix => key.startsWith(prefix))) cache.delete(key);
   }
@@ -159,22 +152,37 @@ async function handle(type, params = {}) {
     ]));
   }
   if (type === 'home-sections') {
-    return cached('home-sections', 30000, async () => {
-      const results = await Promise.allSettled([
-        json('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?type=all'),
-        json('https://api.live.bilibili.com/xlive/web-interface/v1/webMain/getMoreRecList?platform=web&web_location=333.1007'),
-        json('https://api.bilibili.com/pgc/web/timeline?types=1&before=2&after=2'),
-        json('https://api.bilibili.com/x/web-interface/popular?ps=12&pn=1'),
-      ]);
-      const value = (index) => results[index] && results[index].status === 'fulfilled' ? results[index].value : null;
-      return { followed:value(0), live:value(1), bangumi:value(2), popular:value(3) };
-    });
+    const endpoints = {
+      followed:'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?type=all',
+      live:'https://api.live.bilibili.com/xlive/web-interface/v1/webMain/getMoreRecList?platform=web&web_location=333.1007',
+      bangumi:'https://api.bilibili.com/pgc/web/timeline?types=1&before=2&after=2',
+      popular:'https://api.bilibili.com/x/web-interface/popular?ps=12&pn=1',
+    };
+    // Cache each source independently so a category view waits only for its
+    // own endpoint, and enabling another shelf can reuse successful reads.
+    const sections = Array.isArray(params.sections) ? params.sections : Object.keys(endpoints);
+    const requested = [...new Set(sections.filter(key => Object.hasOwn(endpoints, key)))];
+    const values = await Promise.all(requested.map(key => cached(`home-sections:${key}`, 30000, () => json(endpoints[key]))));
+    return Object.fromEntries(requested.map((key, index) => [key, values[index]]));
   }
   if (type === 'search-suggest') {
     const term = String(params.term || params.keyword || '').trim();
     if (!term) return { code:0, data:{ result:{ tag:[] } } };
     const q = new URLSearchParams({ term, highlight:'0', spmid:'333.337', web_location:'1430654' });
     return cached(`search-suggest:${term}`, 10000, () => json(`https://api.bilibili.com/x/web-interface/suggest?${q}`));
+  }
+  // The native header uses this promoted word as the empty search placeholder.
+  if (type === 'search-default') {
+    return cached('search-default', 60000, () => json('https://api.bilibili.com/x/web-interface/search/default'));
+  }
+  // `search/square` is what the native focus panel renders as "bilibili热搜".
+  if (type === 'search-trending') {
+    return cached('search-trending', 60000, () => json('https://api.bilibili.com/x/web-interface/search/square?limit=10&platform=web'));
+  }
+  if (type === 'search-detail') {
+    const bvid=String(params.bvid||'').trim();
+    if(!/^BV[0-9A-Za-z]+$/.test(bvid))return null;
+    return cached(`preview-view:${bvid}`,300000,()=>json(`https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`));
   }
   if (type === 'search') {
     const keyword = String(params.keyword || '').trim();
@@ -215,29 +223,6 @@ async function handle(type, params = {}) {
   }
   if (type === 'account') return cached('account', 30000, () => json('https://api.bilibili.com/x/web-interface/nav'));
   if (type === 'subscriptions') return cached('subscriptions', 45000, () => json('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/nav'));
-  if (type === 'history') {
-    const max = Math.max(0, Number(params.max || 0) || 0);
-    const viewAt = Math.max(0, Number(params.viewAt || params.view_at || 0) || 0);
-    const business = String(params.business || '');
-    const q = new URLSearchParams({ ps:'30', type:'all', max:String(max), business, view_at:String(viewAt) });
-    return cached(`history:${max}:${business}:${viewAt}`, 12000, () => json(`https://api.bilibili.com/x/web-interface/history/cursor?${q}`));
-  }
-  if (type === 'history-status') return json('https://api.bilibili.com/x/v2/history/shadow');
-  if (type === 'history-clear') {
-    const csrf = String(params.csrf || '').trim();
-    if (!csrf) return { code:-101, message:t('login_required','请先登录 Bilibili') };
-    const result = await postForm('https://api.bilibili.com/x/v2/history/clear', { csrf });
-    cache.clear();
-    return result;
-  }
-  if (type === 'history-toggle') {
-    const csrf = String(params.csrf || '').trim();
-    if (!csrf) return { code:-101, message:t('login_required','请先登录 Bilibili') };
-    const paused = Boolean(params.paused);
-    const result = await postForm('https://api.bilibili.com/x/v2/history/shadow/set', { switch:paused ? 1 : 0, csrf });
-    cache.delete('history-status');
-    return result;
-  }
   if (type === 'dynamic') {
     const offset = String(params.offset || '');
     const q = new URLSearchParams({ type:'all', offset });
@@ -295,69 +280,21 @@ async function handle(type, params = {}) {
     const hasMore = Boolean(resources && resources.code === 0 && resources.data && resources.data.has_more);
     return { mid, folders, resources, mediaId, page, hasMore };
   }
-  if (type === 'watch-related') {
-    const bvid = validBvid(params.bvid);
-    if (!bvid) return { bvid, view:null, related:null };
-    const view = await cached(`watch-view:${bvid}`, 180000, () => json(`https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`));
-    const related = await cached(`watch-related:${bvid}`, 60000, () => json(`https://api.bilibili.com/x/web-interface/archive/related?bvid=${encodeURIComponent(bvid)}`));
-    return { bvid, view, related };
-  }
-  if (type === 'watch-comments') {
-    const { aid } = await resolveVideoIdentity(params);
-    if (!aid) return { code:-400, message:t('missing_video_aid','缺少视频 aid'), data:{ replies:[], cursor:{ all_count:0 } } };
-    const pagination = typeof params.pagination === 'string' ? params.pagination : '';
-    const paginationStr = JSON.stringify({ offset:pagination });
-    const wbiParams = { oid:aid, type:1, mode:3, pagination_str:paginationStr, plat:1, seek_rpid:'', web_location:1315875 };
-    const fallback = `https://api.bilibili.com/x/v2/reply?type=1&oid=${encodeURIComponent(aid)}&sort=2&pn=1&ps=20`;
-    return wbiFirst('/x/v2/reply/wbi/main', wbiParams, [fallback]);
-  }
-  if (type === 'watch-comment-add') {
-    const { aid } = await resolveVideoIdentity(params);
-    const csrf = String(params.csrf || '').trim();
-    const message = String(params.message || '').trim();
-    if (!aid || !csrf || !message) return { code:-400, message:t('missing_comment_params','缺少评论参数') };
-    return postForm('https://api.bilibili.com/x/v2/reply/add', { type:1, oid:aid, message, csrf });
-  }
-  if (type === 'watch-favorite-folders') {
-    const mid = digits(params.mid);
-    const { aid } = await resolveVideoIdentity(params);
-    if (!mid) return { code:-101, message:t('login_required','请先登录 Bilibili'), data:{ list:[] } };
-    const query = new URLSearchParams({ up_mid:mid });
-    if (aid) { query.set('rid', aid); query.set('type', '2'); }
-    return json(`https://api.bilibili.com/x/v3/fav/folder/created/list-all?${query}`);
-  }
-  if (type === 'watch-action') {
-    const action = String(params.action || '');
-    const csrf = String(params.csrf || '').trim();
-    const identity = await resolveVideoIdentity(params);
-    const { aid, bvid } = identity;
-    if (!csrf || (!aid && !bvid)) return { code:-101, message:t('login_required','请先登录 Bilibili') };
-    let result = null;
-    if (action === 'like') {
-      result = await postForm('https://api.bilibili.com/x/web-interface/archive/like', { aid, bvid, like:params.active ? 2 : 1, csrf });
-    } else if (action === 'triple') {
-      result = await postForm('https://api.bilibili.com/x/web-interface/archive/like/triple', { aid, bvid, csrf });
-    } else if (action === 'coin') {
-      const multiply = Math.max(1, Math.min(2, Number(params.multiply || 1) || 1));
-      result = await postForm('https://api.bilibili.com/x/web-interface/coin/add', { aid, bvid, multiply, select_like:params.selectLike ? 1 : 0, csrf });
-    } else if (action === 'favorite') {
-      if (!aid) return { code:-400, message:t('favorite_missing_aid','收藏操作缺少 aid') };
-      const add = Array.isArray(params.addMediaIds) ? params.addMediaIds.map(digits).filter(Boolean).join(',') : String(params.addMediaIds || '');
-      const del = Array.isArray(params.delMediaIds) ? params.delMediaIds.map(digits).filter(Boolean).join(',') : String(params.delMediaIds || '');
-      result = await postForm('https://api.bilibili.com/x/v3/fav/resource/deal', { rid:aid, type:2, add_media_ids:add, del_media_ids:del, csrf });
-    } else {
-      return { code:-400, message:t('unsupported_operation','不支持的操作') };
-    }
-    if (result && result.code === 0) cache.clear();
-    const view = result && result.code === 0 ? await freshView(bvid, aid) : null;
-    return { ...(result || { code:-1, message:t('request_failed','请求失败') }), view };
-  }
   if (type === 'preview') {
     const bvid = validBvid(params.bvid);
     if (!bvid) return { bvid, url:'' };
-    const view = await cached(`preview-view:${bvid}`, 300000, () => json(`https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`));
-    const info = view && view.code === 0 ? view.data || {} : {};
-    const cid = info.cid || (Array.isArray(info.pages) && info.pages[0] && info.pages[0].cid);
+    let cid = Number(params.cid) || 0;
+    if (!cid) {
+      // `pagelist` returns the same first-page cid as `view` for a fraction of
+      // the payload; `view` stays as the fallback for videos without pages.
+      const pages = await cached(`preview-pages:${bvid}`, 300000, () => json(`https://api.bilibili.com/x/player/pagelist?bvid=${encodeURIComponent(bvid)}`));
+      cid = Array.isArray(pages && pages.data) && pages.data[0] && Number(pages.data[0].cid) || 0;
+      if (!cid) {
+        const view = await cached(`preview-view:${bvid}`, 300000, () => json(`https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`));
+        const info = view && view.code === 0 ? view.data || {} : {};
+        cid = Number(info.cid) || Number(Array.isArray(info.pages) && info.pages[0] && info.pages[0].cid) || 0;
+      }
+    }
     if (!cid) return { bvid, url:'' };
     const q = `bvid=${encodeURIComponent(bvid)}&cid=${encodeURIComponent(cid)}&qn=32&fnval=0&fnver=0&fourk=0&platform=html5&high_quality=1`;
     const play = await cached(`preview-play:${bvid}:${cid}`, 180000, () => json(`https://api.bilibili.com/x/player/playurl?${q}`));

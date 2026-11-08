@@ -180,11 +180,20 @@ def main() -> None:
 
         first_card = page.locator('.bt-card-title').first
         if first_card.count():
-            with page.expect_navigation(timeout=60_000):
-                first_card.click()
-            page.wait_for_timeout(6_000)
-            inspect_page(page, "watch-after-home-card-click")
-            wait_page(page, "https://www.bilibili.com/")
+            if first_card.get_attribute('target') == '_blank':
+                with context.expect_page(timeout=60_000) as opened:
+                    first_card.click()
+                watch_page = opened.value
+                watch_page.wait_for_load_state('domcontentloaded',timeout=60_000)
+                watch_page.wait_for_timeout(6_000)
+                inspect_page(watch_page, "watch-after-home-card-click")
+                watch_page.close()
+            else:
+                with page.expect_navigation(timeout=60_000):
+                    first_card.click()
+                page.wait_for_timeout(6_000)
+                inspect_page(page, "watch-after-home-card-click")
+                wait_page(page, "https://www.bilibili.com/")
 
         tech = page.locator('a.bt-chip[href*="bilitube_category=tech"]').first
         if tech.count():

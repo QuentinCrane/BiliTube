@@ -32,6 +32,22 @@ node scripts/verify.mjs
 git diff --check
 ```
 
+动效与界面需要真实 Chromium 渲染，用两个独立的脚本，不新增 npm 依赖（脚本以 Chrome/Edge 无头模式运行，可用 `BROWSER_EXECUTABLE` 覆盖路径）：
+
+```powershell
+# 同路由 FLIP、分页追加、动效开关和主题互斥的数值断言
+python scripts/motion_smoke.py
+
+# 图片字节、预览查询字节和 500 张卡片的挂载基线
+python scripts/resource_audit.py --runs 3
+
+# 生成首页、搜索、收藏、动态、稍后再看、频道、骨架屏的深浅色截图
+python scripts/ui_preview.py --tag after
+python scripts/ui_preview.py --tag after-dark --theme dark
+```
+
+`ui_preview.py` 会把确定性的 SVG 封面、固定数据和一个离线夹具页写入 `output/ui-preview/<tag>/`，用于同一版本前后对比；`--demo` 参数可以生成带“打乱顺序 / 追加 / 切换主题 / 动效强度”按钮的手动演示页。两者都不访问 Bilibili，也不代表登录态下的接口兼容性。
+
 当前仓库不需要 `npm install`，也没有 `package.json`。测试使用 Node.js 内置 test runner，扩展运行时使用浏览器提供的 Chrome API。
 
 ## Test areas
@@ -53,7 +69,7 @@ git diff --check
 - 原生评论 Shadow DOM 不被访问或重建；
 - Watch 的宽屏、网页全屏、浏览器全屏和 mini-player 由 Bilibili 状态控制；
 - BiliTube 不合成原生点赞、投币、收藏、分享和评论事件；
-- 普通推荐链接使用原生 anchor 导航。
+- 推荐视频使用原生 anchor 导航；开启新标签页选项时阻止原站额外的同页跳转。
 
 ### Route and response races
 
@@ -88,6 +104,14 @@ git diff --check
 
 ## Manual acceptance matrix
 
+### Native History layout
+
+```powershell
+python scripts/history_native_smoke.py
+```
+
+该脚本在临时、未登录的 Edge 配置中加载当前 Bilibili 历史页面和本地扩展，将历史读取、搜索和写入接口全部拦截为合成数据。它检查日期分组、单列卡片、滚动加载、搜索与筛选、原生视图切换、单条删除、批量选择、清空和暂停记录确认，以及深色和窄屏布局。此测试不访问或更改真实账号的历史记录，也不等同于登录态验收。
+
 ### Theme transition and Watch startup
 
 ```powershell
@@ -105,9 +129,13 @@ python scripts/watch_startup_probe.py --decorated-only --seconds 8
 python scripts/watch_navigation_probe.py --clicks 5
 ```
 
-在临时、未登录 Edge 配置中加载实际扩展，点击原生右侧推荐链接并记录每次切换的截图、播放器位置、媒体状态与 document timeOrigin，输出在 `output/watch-navigation/`。相同 timeOrigin 表示同页导航；检查要求完成指定次数且播放器保持在标题上方。实际媒体状态单独记录，网络失败或视频权限可能影响播放。
+在临时、未登录 Edge 配置中加载实际扩展，关闭推荐视频新标签页选项后点击原生右侧推荐链接，记录每次切换的截图、播放器位置、媒体状态与 document timeOrigin，输出在 `output/watch-navigation/`。相同 timeOrigin 表示同页导航；检查要求完成指定次数且播放器保持在标题上方。实际媒体状态单独记录，网络失败或视频权限可能影响播放。
 
 `watch_layout_smoke.py` 同时模拟原站清除播放器 class、将原生高度设为 0、替换外层容器和延迟插入评论；检查播放器位置、媒体节点身份、mini / wide / web 模式退出后的恢复以及销毁后监听释放。
+
+`python scripts/watch_controls_smoke.py` 使用离线播放器控件夹具检查桌面悬浮样式、点击命中、原生控件隐藏状态和播放器模式隔离。加上 `--live` 会在临时未登录的 Edge 配置中加载公开 Bilibili 视频和本地扩展，验证播放、音量、时间输入、清晰度菜单、设置开关及宽屏和网页全屏切换；结果不代表登录态验收。
+
+`python scripts/recommendation_navigation_smoke.py` 使用临时未登录配置检查实际扩展中的搜索焦点、新标签页设置保存和同步，以及首页与播放页推荐的鼠标和键盘导航。
 
 ### Refresh, failure recovery and responsive layout
 
@@ -155,6 +183,8 @@ python scripts/watch_navigation_probe.py --clicks 5
 - [ ] URL 增加 `bilitube_native=1` 后可以恢复原生 Bilibili 页面。
 
 ## Browser evidence template
+
+性能修改的测量方法、对比结果和验收边界见 [PERFORMANCE.md](PERFORMANCE.md)。确定性的浏览器性能回归可运行 `python scripts/performance_audit.py`；时间对比应独立、顺序运行。
 
 真实页面验收可以按下面格式记录在 Issue、PR 或 release notes 中：
 

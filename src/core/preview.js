@@ -16,6 +16,8 @@
     let active = null;
     const offscreen = new WeakSet();
     const bindings = new Map();
+    const doc = typeof document !== 'undefined' ? document : null;
+    const onVisibilityChange = () => { if (doc.hidden) cleanupActive(); };
     const trackPointer=event=>{if(active)active.point={x:event.clientX,y:event.clientY};};
     const observer = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver((entries) => {
       for (const entry of entries) {
@@ -29,6 +31,7 @@
 
     function cleanupActive() {
       if (!active) return;
+      if(doc)doc.removeEventListener('visibilitychange',onVisibilityChange);
       if(typeof document!=='undefined')document.removeEventListener('pointermove',trackPointer,true);
       if (active.timer) clearTimeout(active.timer);
       if (active.leaveTimer) clearTimeout(active.leaveTimer);
@@ -110,18 +113,23 @@
     }
 
     function begin(id, host, card, event) {
+      if(doc&&doc.hidden)return;
       if(active&&active.card===card){if(active.leaveTimer){clearTimeout(active.leaveTimer);active.leaveTimer=null;}return;}
       cleanupActive();
       const session = { id, host, card, timer: null, leaveTimer: null, layer: null, video: null };
       if(event&&Number.isFinite(event.clientX))session.point={x:event.clientX,y:event.clientY};
       active = session;
+      if(doc)doc.addEventListener('visibilitychange',onVisibilityChange);
       if(typeof document!=='undefined')document.addEventListener('pointermove',trackPointer,{capture:true,passive:true});
       session.timer = setTimeout(() => {
         session.timer = null;
         if (active !== session) return;
         const known = cached.get(id);
         if (known && known.expiresAt > Date.now()) { cached.delete(id); cached.set(id,known); mountMedia(session, known.url); }
-        else requestMedia(id);
+        else {
+          const cid = Number(card && card.__btCardItem && card.__btCardItem.cid) || 0;
+          requestMedia(id, cid);
+        }
       }, Math.max(0, Math.min(2000, Number(getDelay()) || 500)));
     }
 
@@ -162,11 +170,18 @@
     }
 
     function resolve(id, url) {
+      const key = String(id);
       if (url) {
-        cached.delete(String(id));cached.set(String(id), {url,expiresAt:Date.now()+120000});
-        while(cached.size>64)cached.delete(cached.keys().next().value);
+        // 150 s stays inside the shortest upstream TTL (playurl, 180 s) so a
+        // re-hover never trusts a URL the service worker already dropped.
+        cached.delete(key);cached.set(key, {url,expiresAt:Date.now()+150000});
+      } else {
+        // Remember "no preview for this video" briefly. Without it every hover
+        // would re-run the two-request lookup for the same dead id.
+        cached.delete(key);cached.set(key, {url:'',expiresAt:Date.now()+30000});
       }
-      if (active && active.id === String(id) && !active.timer && !active.video && url) mountMedia(active, url);
+      while(cached.size>64)cached.delete(cached.keys().next().value);
+      if (active && active.id === key && !active.timer && !active.video && url) mountMedia(active, url);
     }
 
     function destroy() {
@@ -176,6 +191,9 @@
     }
 
     function prune(){for(const [card,unbind] of bindings)if(!card.isConnected){if(active&&active.card===card)cleanupActive();unbind();}}
+    // Read-only probe for the motion layer: a playing preview must never become
+    // a flipped element, otherwise the video layer is re-composited mid-frame.
+    function isActive(){return Boolean(active);}
     function resume(){
       if(!active||shouldRetain()||typeof active.card.matches!=='function')return;
       const rect=active.point&&active.card.getBoundingClientRect();
@@ -183,7 +201,7 @@
       if(!inside&&!active.card.matches(':hover')&&!active.card.contains(document.activeElement))cleanupActive();
     }
 
-    return { bind, resolve, destroy, prune, resume, seekTime: Model && Model.seekTime };
+    return { bind, resolve, destroy, prune, resume, isActive, seekTime: Model && Model.seekTime };
   }
   return { createController };
 });

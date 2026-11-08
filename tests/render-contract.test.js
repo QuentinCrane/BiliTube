@@ -7,7 +7,7 @@ const read = p => fs.readFileSync(path.join(root,p),'utf8');
 
 test('UI exports the supported core surfaces', () => {
   const src = read('src/core/ui.js');
-  for (const name of ['createCard','renderHome','renderHistory','renderSearch','renderSpace','renderDynamic','renderWatchLater','renderFavorites']) assert.match(src, new RegExp(name));
+  for (const name of ['createCard','renderHome','renderSearch','renderSpace','renderDynamic','renderWatchLater','renderFavorites','createTopbar']) assert.match(src, new RegExp(name));
 });
 
 test('homepage category chips stay inside the BiliTube replacement route', () => {

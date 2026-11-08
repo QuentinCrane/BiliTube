@@ -38,3 +38,22 @@ test('visibility guard preserves pre-existing visibility state as well as displa
   assert.match(src, /visibilityPriority/);
   assert.match(src, /removeProperty\(['"]visibility['"]\)/);
 });
+
+test('the YouTube baseline is the default surface and glass mode is opt-in', () => {
+  const app = read('src/core/app.js');
+  assert.match(app, /glassMode:false/, 'defaults must start on the YouTube baseline');
+  assert.match(app, /classList\.toggle\('bt-glass-mode', settings\.glassMode === true\)/);
+  assert.match(app, /const next=settings\.glassMode!==true;/);
+  assert.doesNotMatch(app, /glassMode !== false/);
+  assert.match(read('src/core/ui.js'), /glassMode===true/);
+  assert.match(read('src/page/preflight.js'), /saved\.glassMode === true/);
+  assert.match(read('src/options/options.js'), /glassMode:false/);
+});
+
+test('the light baseline uses the YouTube accent instead of Bilibili cyan', () => {
+  const css = read('src/styles/core.css');
+  const block = css.match(/html\[data-bt-theme="light"\]\:not\(\.bt-glass-mode\)\{([^}]*)\}/);
+  assert.ok(block, 'light baseline block must exist');
+  assert.match(block[1], /--bt-accent:#065fd4/);
+  assert.doesNotMatch(block[1], /--bt-accent:#00aeec/);
+});

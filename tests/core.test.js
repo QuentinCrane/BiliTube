@@ -80,14 +80,15 @@ test('a newer theme request prevents an older snapshot commit and cleanup', asyn
   transitions[1].finishNow();await last;await Promise.resolve();await Promise.resolve();assert.equal(classes.has('bt-theme-reveal'),false);
 });
 
-test('theme capture suspends only running decorators and restores them on cancellation',()=>{
-  let played=0,paused=0,finish;
-  const decorator={playState:'running',effect:{target:{}},pause(){paused++;this.playState='paused'},play(){played++;this.playState='running'}};
-  const alreadyPaused={playState:'paused',effect:{target:{}},pause:()=>assert.fail('must retain pre-existing pause'),play:()=>assert.fail('must not resume unrelated paused animation')};
-  const html={classList:{add(){},remove(){}},animate(){}};
-  const doc={documentElement:html,defaultView:{innerWidth:1000,innerHeight:600},getAnimations:()=>[decorator,alreadyPaused],startViewTransition:()=>({ready:new Promise(()=>{}),finished:new Promise(resolve=>{finish=resolve}),skipTransition:()=>finish()})};
+test('theme capture defers subtree changes until commit and never enumerates page animations',()=>{
+  let finish,commit;
+  const classes=new Set();
+  const html={classList:{add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name))},animate(){}};
+  const doc={documentElement:html,getAnimations:()=>assert.fail('must not force offscreen style/layout'),startViewTransition:fn=>{commit=fn;return {ready:new Promise(()=>{}),finished:new Promise(resolve=>{finish=resolve}),skipTransition:()=>finish()}}};
   const reveal=Theme.createRevealController(doc);reveal.run(()=>{},null);
-  assert.equal(paused,1);assert.equal(played,0);reveal.cancel();assert.equal(played,1);assert.equal(decorator.playState,'running');
+  assert.equal(classes.has('bt-theme-reveal'),true);assert.equal(classes.has('bt-theme-switching'),false);
+  commit();assert.equal(classes.has('bt-theme-switching'),true);
+  reveal.cancel();assert.equal(classes.size,0);
 });
 
 test('cache expires entries by ttl', async () => {

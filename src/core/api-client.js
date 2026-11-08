@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createApiClient(root) {
   const snapshots=new Map(),waiting=new Set();
   const nativeTypes=new Set(['home','search','space-archives','dynamic','watchlater']);
-  const reads=new Set(['home','search','space-archives','space-profile','dynamic','watchlater','favorites','home-sections','home-category','account','subscriptions','history','history-status','preview','search-suggest','watch-related']);
+  const reads=new Set(['home','search','search-detail','space-archives','space-profile','dynamic','watchlater','favorites','home-sections','home-category','account','subscriptions','preview','search-suggest','search-default','search-trending']);
   function key(type,params={}){
     if(type==='search')return JSON.stringify([type,String(params.keyword||'').trim(),params.category||'all',Number(params.page||1),params.category==='video'?params.order||'totalrank':'',params.category==='video'?Number(params.duration||0):0]);
     if(type==='space-archives')return JSON.stringify([type,String(params.mid||''),Number(params.page||1)]);
@@ -25,14 +25,22 @@
     for(const pending of waiting)if(pending.key===id&&pending.href===href)pending.finish(snapshot.payload);
   }
   if(root&&typeof root.addEventListener==='function')root.addEventListener('message',onMessage);
-  function request(type, params = {}) {
+  function request(type, params = {}, options = {}) {
     return new Promise((resolve) => {
+      // Cancel the native-response grace period and release timers on route
+      // departure. Already dispatched extension messages remain non-abortable.
+      const signal=reads.has(type)?options.signal:null;
+      if(signal&&signal.aborted){resolve(null);return;}
       const preferNative=params.nativeFirst&&!params.forceFresh&&nativeTypes.has(type),id=key(type,params),href=root.location&&identity(root.location.href);
       if(params.forceFresh)snapshots.delete(id);
       let settled=false,backup=null,deadline=null;
       const pending={key:id,href,finish(value){
-        if(settled)return;settled=true;clearTimeout(backup);clearTimeout(deadline);waiting.delete(pending);resolve(value);
+        if(settled)return;settled=true;clearTimeout(backup);clearTimeout(deadline);waiting.delete(pending);
+        if(signal)signal.removeEventListener('abort',abort);
+        resolve(value);
       }};
+      const abort=()=>pending.finish(null);
+      if(signal)signal.addEventListener('abort',abort,{once:true});
       const wireParams={...params};delete wireParams.nativeFirst;
       const send=()=>{
         backup=null;if(settled)return;

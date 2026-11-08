@@ -12,6 +12,7 @@
 | 视频卡 | 16:9、12px 圆角、两行标题、创作者/播放信息层级统一 | ✓ | 待验 |
 | Hover Preview | 封面内部预览；覆盖层点击穿透；仅 seek rail 接收拖动 | ✓ | 待验 |
 | Hover 稍后再看 | 右上角时钟按钮；只拦自身点击；B站 add/del；同视频状态同步 | ✓ | 待验 |
+| 搜索默认推荐 | 空搜索框占位官方默认词；聚焦展示搜索历史 + `bilibili热搜`；历史可删除/清空/展开 | ✓ | 待验 |
 | 搜索建议 | Bilibili 官方 suggest；约 180ms debounce；鼠标 + ↑/↓ + Enter + Esc | ✓ | 待验 |
 | 搜索“全部” | 官方 WBI 综合搜索；最多 1 个最相关 UP 卡 + 大量视频 | ✓ | 待验 |
 | 搜索“用户” | 完整频道列表；频道卡与关注能力 | ✓ | 待验 |
@@ -24,11 +25,11 @@
 | 普通 Watch 布局 | 保留原生左右栏盒模型；顶层两栏 Grid + 左栏 Flex/Order，禁止关键容器 `display: contents`；主栏 + 约 402px 相关推荐栏；16px 栏间距，大屏约 36px 外侧安全留白 | ✓ | 待验 |
 | Watch 初载稳定性 | `/video/` 在 document_start 进入 Watch preflight，并以最终双栏几何首帧呈现；核心 DOM 就绪后原子切换 `bt-watch-ready`，observer 仅观察 Watch 主布局/播放器区域 | ✓ | 待验 |
 | 主题切换动画 | 深浅色切换优先 View Transition，回退约 200ms CSS 过渡；主题按钮轻微旋转/缩放，并尊重 `prefers-reduced-motion` | ✓ | 待验 |
-| Watch 播放器 | 原节点、原父节点；正常模式视觉 16:9 / 12px 圆角，BPX 控制条尺度校准；不替换控件 | ✓ | 待验 |
+| Watch 播放器 | 原节点、原父节点；正常模式视觉 16:9 / 12px 圆角，BPX 控制条采用悬浮分组和圆角菜单；不替换控件 | ✓ | 待验 |
 | Watch UP / 关注 | BiliTube 在左栏镜像简单作者行（头像/名称/空间链接/关注）；标题信息容器强制内容高度，作者行与标题保持紧凑；右栏原生 UP 区隐藏避免重复 | ✓ | 待验 |
 | Watch toolbar | 点赞/投币/收藏/分享/三连由 Bilibili 原生 toolbar 直接处理，无 synthetic event / event bridge | ✓ | 待验 |
 | Watch 评论 | 原生评论根始终留在 Bilibili 原位置；不移动、不重建、不改 Shadow DOM 内部 | ✓ | 待验 |
-| Watch 相关推荐 | Bilibili 原生推荐业务节点和原生链接；所有右栏卡片恢复两行标题、UP 名与播放/时间 metadata，懒加载内容继承同一套布局 | ✓ | 定向通过¹ |
+| Watch 相关推荐 | Bilibili 原生推荐业务节点和原生链接；两行标题与 metadata，支持设置新标签页或当前页打开 | ✓ | 定向通过¹ |
 | 宽屏 | 观察 B站 `data-screen=wide` 等原生状态，释放普通双栏约束 | ✓ | 待验 |
 | 网页全屏 | BiliTube 外围 chrome/布局让位，由 B站播放器几何接管 | ✓ | 待验 |
 | 浏览器真全屏 | 监听 Fullscreen API 状态并释放外围布局 | ✓ | 待验 |

@@ -14,12 +14,14 @@ test('watch decorator keeps native player and business modules in their original
   assert.doesNotMatch(src, /appendChild\s*\(\s*(?:player|toolbar|comment)|replaceWith\s*\(\s*(?:player|toolbar|comment)|insertBefore\s*\(\s*(?:player|toolbar|comment)/i);
 });
 
-test('legacy native action proxy remains fail-closed and is not used by the watch decorator', () => {
-  const actions = read('src/core/actions.js');
+test('legacy synthetic native action proxy is removed from runtime and package', () => {
   const watch = read('src/core/watch.js');
-  assert.match(actions, /findTarget/);
-  assert.match(actions, /return false/);
+  const app = read('src/core/app.js');
+  const manifest = JSON.parse(read('manifest.json'));
+  assert.equal(fs.existsSync(path.join(root,'src/core/actions.js')),false);
   assert.doesNotMatch(watch, /Actions|callbacks\.action|dispatchEvent/);
+  assert.doesNotMatch(app, /BiliTubeActions|Actions\.invoke|callbacks\.action/);
+  assert.ok(!manifest.content_scripts.some(entry => (entry.js || []).includes('src/core/actions.js')));
 });
 
 test('watch discovers native left-column regions with bounded retries and marking only', () => {

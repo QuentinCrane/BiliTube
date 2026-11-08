@@ -46,3 +46,20 @@ test('an explicit refresh bypasses native snapshots and only accepts its fresh r
   h.deliver(snapshot());h.sent[0].reply({ok:true,data:{code:0,data:{result:['fresh']}}});
   assert.deepEqual((await pending).data.result,['fresh']);assert.equal(h.timers.size,0);
 });
+
+test('route cancellation releases native waiters and prevents delayed fallback requests',async()=>{
+  const h=harness(),controller=new AbortController();
+  const pending=h.api.request('search',{keyword:'demo',nativeFirst:true},{signal:controller.signal});
+  controller.abort();assert.equal(await pending,null);assert.equal(h.timers.size,0);
+  h.deliver(snapshot());h.tick(250);assert.equal(h.sent.length,0);
+  assert.equal(await h.api.request('account',{}, {signal:controller.signal}),null);assert.equal(h.sent.length,0);
+});
+
+test('route cancellation ignores late read responses and does not cancel writes',async()=>{
+  const h=harness(),controller=new AbortController();
+  const pending=h.api.request('account',{}, {signal:controller.signal});
+  controller.abort();h.sent[0].reply({ok:true,data:{code:0}});
+  assert.equal(await pending,null);assert.equal(h.timers.size,0);
+  const write=h.api.request('watchlater-toggle',{bvid:'BVtest'},{signal:controller.signal});
+  assert.equal(h.sent.length,2);h.sent[1].reply({ok:true,data:{code:0}});assert.equal((await write).code,0);
+});

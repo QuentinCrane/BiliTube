@@ -17,7 +17,7 @@
 
 | Manifest 项 | 为什么需要 |
 | --- | --- |
-| `storage` | 保存启用状态、主题、布局、预览和搜索等选项；监听设置变更并同步已打开页面 |
+| `storage` | 保存启用状态、主题、布局、预览、搜索等选项和本地搜索历史；监听设置变更并同步已打开页面 |
 | `*://*.bilibili.com/*` / `*://bilibili.com/*` | 在 Bilibili 主站、动态、Space 等页面注入内容脚本和样式 |
 | `*://api.bilibili.com/*` | 访问推荐、搜索、历史、动态、订阅、收藏夹、用户和播放器接口 |
 | `*://*.hdslb.com/*` | 加载 Bilibili 返回的图片等 CDN 资源 |
@@ -42,6 +42,8 @@ Bilibili page
 
 `src/core/api-client.js` 只向扩展 service worker 发消息。`src/background.js` 负责 Bilibili API、短期内存缓存、WBI 签名和必要的 POST 操作。BiliTube 没有把这些数据转发到第三方 BiliTube 服务的代码路径。
 
+搜索结果缺少头像、简介或播放信息时，BiliTube 会在对应卡片接近可视区域时向 Bilibili 的视频详情接口请求补充信息；同时最多处理三个请求，并复用短期内存缓存。
+
 需要登录态的能力，例如历史、订阅、动态、稍后再看、收藏夹、关注和某些播放器接口，会受当前 Bilibili 登录状态、Cookie 策略、CSRF token 和接口权限影响。BiliTube 不绕过登录、验证码、付费或访问控制。
 
 ## Local storage and runtime memory
@@ -54,6 +56,10 @@ Bilibili page
 - 侧栏、订阅和首页 Shelf 开关；
 - Hover Preview 延迟和稍后再看按钮；
 - 卡片辅助信息、搜索建议和广告隐藏选项。
+
+搜索框的本地搜索历史保存在 `chrome.storage.local` 的 `bilitube_search_history`，用于在空搜索框聚焦时显示最近搜索。它只保存在当前浏览器的扩展存储中，不上传到 BiliTube 服务器，可在搜索面板中单条删除或清空。
+
+历史记录页首次采用单列样式。用户主动使用 B 站的视图切换按钮后，`bilitube_history_view_chosen` 在扩展本地存储中记录这一选择，以保留 B 站自身的网格／列表视图偏好；其中不包含历史内容。
 
 请求缓存、当前用户、当前 feed、分页游标、稍后再看集合、预览 URL 和已完成的缩略图视觉状态都保存在当前扩展运行时的内存中。关闭页面、扩展 service worker 被回收或浏览器退出后，这些内存状态不应被视为持久数据。
 

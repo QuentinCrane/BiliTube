@@ -42,11 +42,12 @@ test('watch surface defines a YouTube-like native two-column composition', () =>
   assert.match(css, /grid-template-columns\s*:\s*minmax\(0,1fr\)\s+minmax\(320px,var\(--bt-watch-related-w\)\)/);
   assert.match(css, /\.bt-native-watch-player-host/);
   assert.match(css, /\.bt-native-watch-description/);
+  assert.match(read('src/core/watch.js'), /bt-watch-author-actions/);
 });
 
 test('search, channel, history, and library keep dedicated YouTube-like surfaces', () => {
   const css = read('src/styles/core.css');
-  for (const selector of ['.bt-search-row','.bt-channel-hero','.bt-history-layout','.bt-library-layout','.bt-favorites-layout']) {
+  for (const selector of ['.bt-search-row','.bt-channel-hero','html.bt-native-adapted[data-bt-native-route="history"]','.bt-library-layout','.bt-favorites-layout']) {
     assert.match(css, new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
   }
 });
@@ -72,7 +73,7 @@ test('settings page uses a YouTube-like two-column settings composition with gro
 test('all principal replacement pages retain explicit YouTube-like composition primitives', () => {
   const ui = read('src/core/ui.js');
   const css = read('src/styles/core.css');
-  for (const token of ['bt-chip-row','bt-home-shelf','bt-search-channel','bt-search-row','bt-channel-hero','bt-tabs','bt-history-layout','bt-history-tools','bt-library-layout','bt-favorites-layout','bt-subscriptions-heading']) {
+  for (const token of ['bt-chip-row','bt-home-shelf','bt-search-channel','bt-search-row','bt-channel-hero','bt-tabs','data-bt-native-route="history"','bt-library-layout','bt-favorites-layout','bt-subscriptions-heading']) {
     assert.match(ui + css, new RegExp(token));
   }
 });
@@ -125,4 +126,32 @@ test('watch-later state synchronizes every matching card button after one toggle
   assert.match(app, /function syncWatchLaterButtons/);
   assert.match(app, /querySelectorAll\('\.bt-watchlater-quick/);
   assert.match(app, /syncWatchLaterButtons\(item,next\)/);
+});
+
+test('the desktop baseline is declared once and never overridden by a restyle pass', () => {
+  const css = read('src/styles/core.css');
+  // A later :root block that redeclares these tokens silently moves the whole
+  // layout away from the YouTube baseline while the tests above still pass.
+  assert.deepEqual([...css.matchAll(/--bt-media-radius\s*:\s*([^;}]+)/g)].map(match => match[1].trim()), ['12px']);
+  assert.match(css, /\.bt-card-avatar\{[^}]*width:36px/s);
+  assert.match(css, /\.bt-chip\{[^}]*border-radius:8px/s);
+  // Chips stay 8px rectangles; a pill radius would be a different design system.
+  for (const block of css.match(/\.[^{}]*bt-chip[^{}]*\{[^}]*\}/g) || []) {
+    assert.doesNotMatch(block, /border-radius:\s*999px/, block.slice(0, 48));
+  }
+});
+
+test('the guide expands by animating its track instead of snapping', () => {
+  const css = read('src/styles/core.css');
+  // The track and the guide element move together, so the content column slides.
+  assert.match(css, /\.bt-body\{transition:grid-template-columns \.2s/s);
+  assert.match(css, /\.bt-sidebar\{transition:width \.2s/s);
+  assert.match(css, /\.bt-sidebar-drawer\{transition:transform \.2s/s);
+  // A style-switch opacity fade must never take over those shorthands again;
+  // that is what silently disabled the collapse animation.
+  assert.doesNotMatch(css, /:is\(\.bt-topbar,\.bt-sidebar,\.bt-sidebar-drawer,\.bt-chip-row\)\{transition:opacity/);
+  // Restoring a saved collapsed state on mount stays instant instead of
+  // playing the collapse on every page load.
+  assert.match(css, /\.bt-root\.is-layout-instant/);
+  assert.match(read('src/core/app.js'), /shell\.setCollapsed\(settings\.sidebarCollapsed,\{instant:true\}\)/);
 });
