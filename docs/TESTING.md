@@ -213,3 +213,5 @@ Limitations: 未验证项目
 - `search.png`：搜索结果。
 
 这些图片记录页面构图。交互、性能和复现步骤分别记录在对应的自动测试与浏览器验收证据中。
+
+普通视频页的播放器留白填充可运行 `python scripts/player_ambient_smoke.py`：隔离 Edge 夹具覆盖竖屏和超宽画面、原生控件命中、暂停与恢复、设置同步、帧不可绘制时的回退、视频替换和网页全屏。脚本需要 Python 的 Playwright 与 Pillow，截图写入 `output/player-ambient/`；真实页面的播放器兼容性仍需单独检查。

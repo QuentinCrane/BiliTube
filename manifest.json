@@ -70,6 +70,7 @@
         "src/core/motion.js",
         "src/core/shell.js",
         "src/core/native-adapter.js",
+        "src/core/player-ambient.js",
         "src/core/watch.js",
         "src/core/app.js"
       ],
