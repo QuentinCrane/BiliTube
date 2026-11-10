@@ -25,6 +25,7 @@
     { marker: 'bt-native-watch-related', selectors: ['.recommend-list-v1', '.recommend-list', '.rec-list', '.next-play', '.video-page-card-small-list', '.video-card-list', '.related-list', '[class*=recommend_wrap]'] },
   ].map(def => ({ ...def, selector: def.selectors.join(',') }));
   const REGION_SELECTOR = REGION_DEFS.map(def => def.selector).join(',');
+  const RELATED_SELECTOR = `.bt-native-watch-related,${REGION_DEFS.find(def => def.marker === 'bt-native-watch-related').selector}`;
   const PLAYER_INTERIOR = '#playerWrap,#bilibili-player-wrap,#bilibili-player,#bilibiliPlayer,.bpx-player-container';
   const ROOT_CLASSES = ['bt-watch-decorated','bt-watch-ready','bt-player-wide','bt-player-web-fullscreen','bt-player-mini','bt-player-browser-fullscreen'];
   const CORE_MARKERS = new Set(['bt-watch-native-layout','bt-native-watch-main','bt-native-watch-aside','bt-native-watch-player-host','bt-native-watch-info']);
@@ -110,7 +111,7 @@
     function recommendationLink(event) {
       const target = event.target && (event.target.closest ? event.target : event.target.parentElement);
       const link = target && target.closest && target.closest('a[href]');
-      if (!link || !link.closest('.bt-native-watch-related')) return null;
+      if (!link || !link.closest(RELATED_SELECTOR)) return null;
       try {
         const url = new URL(link.href, doc.baseURI);
         if (!/^https?:$/.test(url.protocol) || !/^(?:www\.)?bilibili\.com$/i.test(url.hostname) || !/^\/video\/(?:BV[0-9a-z]+|av\d+)/i.test(url.pathname)) return null;
@@ -119,9 +120,9 @@
     }
 
     function recommendationClick(event) {
-      if (!callbacks.openRecommendationsInNewTab || event.defaultPrevented || event.button !== 0) return;
+      if (!callbacks.openWatchRecommendationsInNewTab || event.defaultPrevented || event.button !== 0) return;
       const link = recommendationLink(event);if (!link) return;
-      const enabled = callbacks.openRecommendationsInNewTab();
+      const enabled = callbacks.openWatchRecommendationsInNewTab();
       const modified = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
       if (!enabled && (modified || link.getAttribute('target') !== '_blank')) return;
       for (const node of recommendationTargets.keys()) if (node.isConnected === false) recommendationTargets.delete(node);
@@ -136,7 +137,7 @@
     }
 
     function recommendationKeydown(event) {
-      if (event.key !== 'Enter' || event.defaultPrevented || !callbacks.openRecommendationsInNewTab) return;
+      if (event.key !== 'Enter' || event.defaultPrevented || !callbacks.openWatchRecommendationsInNewTab) return;
       // Bilibili's global player shortcut can consume Enter before the focused
       // native anchor activates. Keep the anchor's own browser action intact.
       if (recommendationLink(event)) event.stopPropagation();

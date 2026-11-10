@@ -74,6 +74,16 @@ def main() -> None:
         page.evaluate("window.__video=document.querySelector('#native-video');window.__useFrame(window.__video,180,320)")
         expect(page.locator(".bt-player-ambient-active canvas.bt-player-ambient")).to_have_count(1)
         page.wait_for_function("window.__draws>=3")
+        page.evaluate("""() => {
+          window.__frameCount=0;window.__trackFrames=true;window.__drawsBeforeTrack=window.__draws;
+          const track=()=>{if(!window.__trackFrames)return;window.__frameCount++;window.__video.requestVideoFrameCallback(track)};
+          window.__video.requestVideoFrameCallback(track);
+        }""")
+        page.wait_for_timeout(1500)
+        tracked = page.evaluate("() => {window.__trackFrames=false;return {frames:window.__frameCount,draws:window.__draws-window.__drawsBeforeTrack}}")
+        assert tracked['frames'] >= 8 and tracked['frames'] - 2 <= tracked['draws'] <= tracked['frames'] + 3, tracked
+        assert page.locator('canvas.bt-player-ambient').evaluate('el=>Math.max(el.width,el.height)') <= 48
+        checks.append('background updates follow source video frames and use a small canvas')
         frame = OUTPUT / "portrait.png"
         page.locator(".bpx-player-video-area").screenshot(path=str(frame))
         with Image.open(frame) as image:
@@ -108,6 +118,36 @@ def main() -> None:
         expect(page.locator(".bt-player-ambient-active canvas.bt-player-ambient")).to_have_count(1)
         checks.append("removed backgrounds are recreated and unavailable video frames fall back cleanly")
 
+        page.evaluate("""async() => {
+          clearInterval(window.__sourceTimer);
+          const source=document.createElement('canvas');source.width=180;source.height=320;
+          const ctx=source.getContext('2d');let blue=false;
+          const paint=()=>{ctx.fillStyle=blue?'#0040ff':'#ff3000';ctx.fillRect(0,0,180,320);blue=!blue};
+          paint();window.__sourceTimer=setInterval(paint,150);window.__source=source;
+          window.__video.srcObject=source.captureStream(30);await window.__video.play();
+        }""")
+        page.wait_for_timeout(600)
+        page.evaluate("""() => {
+          const video=window.__video,probe=document.createElement('canvas');probe.width=probe.height=1;
+          const ctx=probe.getContext('2d',{willReadFrequently:true});window.__syncSamples=[];window.__syncActive=true;
+          const sample=()=>{
+            if(!window.__syncActive)return;
+            const background=document.querySelector('canvas.bt-player-ambient');
+            if(background){
+              ctx.drawImage(video,0,0,1,1);
+              const source=ctx.getImageData(0,0,1,1).data;
+              const pixel=background.getContext('2d').getImageData(Math.floor(background.width/2),Math.floor(background.height/2),1,1).data;
+              window.__syncSamples.push((source[0]>source[2])===(pixel[0]>pixel[2]));
+            }
+            video.requestVideoFrameCallback(sample);
+          };
+          video.requestVideoFrameCallback(sample);
+        }""")
+        page.wait_for_timeout(1800)
+        sync = page.evaluate("() => {window.__syncActive=false;return {total:window.__syncSamples.length,matched:window.__syncSamples.filter(Boolean).length}}")
+        assert sync['total'] >= 8 and sync['matched'] / sync['total'] >= .8, sync
+        checks.append("rapid color changes match between the source frame and background in a pixel-level fixture")
+
         page.evaluate("window.__useFrame(window.__video,320,180)")
         expect(page.locator("canvas.bt-player-ambient")).to_have_count(0)
         page.evaluate("window.__useFrame(window.__video,320,100)")
@@ -119,11 +159,21 @@ def main() -> None:
             assert margin[0] > 40 and margin[0] > margin[1] * 1.4, margin
         page.evaluate("window.__useFrame(window.__video,180,320)")
         expect(page.locator(".bt-player-ambient-active canvas.bt-player-ambient")).to_have_count(1)
+        page.evaluate("""() => {
+          const spacer=document.createElement('div');spacer.style.height='2400px';document.body.append(spacer);
+          window.scrollTo(0,document.body.scrollHeight);
+        }""")
+        expect(page.locator("canvas.bt-player-ambient")).to_have_count(0)
+        draws = page.evaluate("window.__draws")
+        page.wait_for_timeout(350)
+        assert page.evaluate("window.__draws") == draws
+        page.evaluate("window.scrollTo(0,0)")
+        expect(page.locator(".bt-player-ambient-active canvas.bt-player-ambient")).to_have_count(1)
         page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'))")
         expect(page.locator("canvas.bt-player-ambient")).to_have_count(0)
         page.evaluate("delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))")
         expect(page.locator(".bt-player-ambient-active canvas.bt-player-ambient")).to_have_count(1)
-        checks.append("ultrawide video fills top and bottom margins; matching aspect ratios and hidden tabs stop the effect")
+        checks.append("ultrawide video fills top and bottom margins; matching aspect ratios, offscreen players and hidden tabs stop the effect")
 
         page.evaluate("""async()=>{
           const old=window.__video, replacement=document.createElement('video');
@@ -140,6 +190,23 @@ def main() -> None:
 
         page.evaluate("window.__settingsListener({bilitubeCoreSettings:{newValue:{enabled:false}}},'local')")
         expect(page.locator("canvas.bt-player-ambient")).to_have_count(0)
+        page.close()
+
+        fallback = context.new_page()
+        fallback.on("pageerror", lambda error: errors.append(str(error)))
+        fallback.add_init_script("Object.defineProperty(HTMLVideoElement.prototype,'requestVideoFrameCallback',{configurable:true,value:undefined})")
+        fallback.goto("https://www.bilibili.com/video/BVfixture", wait_until="domcontentloaded")
+        fallback.add_style_tag(content=css)
+        fallback.evaluate("window.__video=document.querySelector('#native-video');window.__useFrame(window.__video,180,320)")
+        expect(fallback.locator(".bt-player-ambient-active canvas.bt-player-ambient")).to_have_count(1)
+        fallback.wait_for_function("window.__draws>=3")
+        fallback.evaluate("window.__video.pause()")
+        fallback.wait_for_timeout(150)
+        draws = fallback.evaluate("window.__draws")
+        fallback.wait_for_timeout(250)
+        assert fallback.evaluate("window.__draws") == draws
+        fallback.close()
+        checks.append("browsers without video-frame callbacks update and pause using the timer fallback")
         assert not errors, errors
         checks.append("disabling BiliTube removes the background cleanly")
         print(json.dumps({"kind": "isolated browser fixture", "browser": browser.version, "checks": checks, "page_errors": errors}, ensure_ascii=False, indent=2))

@@ -59,7 +59,7 @@ BiliTube 不计划：
 | 普通视频 | `https://www.bilibili.com/video/BV...` | `decorate` | 播放、评论、互动、看相关推荐 | Bilibili 原生 DOM；BiliTube 外层装饰 |
 | 历史 | `/history`、`/account/history` | `adapt` | 使用 Bilibili 原生历史搜索、分页、清除和管理 | Bilibili 原生页面 |
 | 稍后再看 | `/list/watchlater` | `replace` | 查看进度、打开视频、播放全部、移除 | BiliTube Library + Bilibili API |
-| 收藏夹 | `/space/{mid}/favlist` | `replace` | 切换收藏夹、分页、播放全部 | BiliTube Library + Bilibili API |
+| 收藏夹 | `/space/{mid}/favlist` | `replace` | 浏览收藏夹、搜索当前收藏夹内视频、分页、播放全部 | BiliTube Library + Bilibili API |
 | 频道 | `/space/{mid}`、`/space/{mid}/upload` | `replace` | 查看频道、投稿、关注、频道 Tab | BiliTube Shell + Bilibili API |
 | 直播/番剧/课程/账号 | 对应 Bilibili 子站或原生页面 | `adapt` | 保留原页面业务，使用统一外层导航 | Bilibili 原生页面 |
 
@@ -174,6 +174,15 @@ BiliTube 可以调整外层列宽、间距、圆角、主题和作者镜像，�
 
 状态来自 Bilibili API，当前页面中同一个视频的按钮会同步更新。Native Watch 的复杂播放行为不被 BiliTube 改写。
 
+### Ambient blur padding
+
+播放页支持为画面比例与播放器容器不一致产生的黑边留白添加环境模糊填充：
+
+- 保持视频原有长宽比不拉伸，以当前视频画面边缘颜色填充留白；
+- 采样采用 48px 小尺寸离屏画布并跟随视频帧同步（`requestVideoFrameCallback`），避免全屏高斯模糊带来的昂贵渲染开销；
+- 当用户向下滚动使播放器移出可视区域时，通过 `IntersectionObserver` 自动暂停逐帧处理，进入视口时恢复；
+- 可在“播放与预览”设置中开启或关闭。
+
 ## Settings surface
 
 设置页按用户任务分组：
@@ -181,9 +190,9 @@ BiliTube 可以调整外层列宽、间距、圆角、主题和作者镜像，�
 | 分组 | 选项 |
 | --- | --- |
 | 外观 | 启用 BiliTube、毛玻璃/YouTube 风格、主题 |
-| 导航 | 默认折叠侧栏、显示订阅列表 |
+| 导航 | 默认折叠侧栏、显示订阅列表、首页推荐打开方式、播放页推荐打开方式 |
 | 首页 | 关注、直播、番剧、热门 Shelf |
-| 播放与预览 | Hover Preview、预览延迟、稍后再看按钮 |
+| 播放与预览 | 播放器留白模糊填充、Hover Preview、预览延迟、稍后再看按钮 |
 | 交互与动效 | 舒适/紧凑密度、完整/轻量/关闭动效 |
 | 卡片信息 | 作者信息、观看数据 |
 | 搜索 | 默认推荐词、搜索历史、热搜与实时联想 |

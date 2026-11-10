@@ -101,6 +101,11 @@
     const h=e('header','bt-topbar'); h.dataset.role='header'; const left=e('div','bt-topbar-left');
     const menu=e('button','bt-icon-button');menu.type='button';menu.title=T('toggle_sidebar','切换侧栏');menu.setAttribute('aria-label',menu.title);menu.append(icon('menu'));menu.addEventListener('click',()=>callbacks.toggleSidebar&&callbacks.toggleSidebar());left.append(menu,brand(callbacks));
     const form=e('form','bt-search');form.action='https://search.bilibili.com/all';form.method='get';const input=e('input','bt-search-input');input.type='search';input.name='keyword';input.placeholder=T('search','搜索');input.setAttribute('aria-label',T('search','搜索'));input.autocomplete='off';input.value=data.query||'';input.setAttribute('aria-autocomplete','list');
+    const updateSearchTarget=route=>{
+      if(['watch','playlist-watch','bangumi-watch','course-watch'].includes(route)){form.setAttribute('target','_blank');form.setAttribute('rel','noopener');}
+      else {form.removeAttribute('target');form.removeAttribute('rel');}
+    };
+    updateSearchTarget(data.route);
     input.setAttribute('role','combobox');
     const btn=e('button','bt-search-button');btn.type='submit';btn.setAttribute('aria-label',T('search','搜索'));btn.append(icon('search'));
     const suggestions=e('div','bt-search-suggestions');suggestions.id='bt-search-suggestions';suggestions.hidden=true;suggestions.setAttribute('role','listbox');
@@ -278,6 +283,7 @@
     topbarUpdates.set(h,(next,nextCallbacks)=>{
       if(nextCallbacks)callbacks=nextCallbacks;
       data=next;
+      updateSearchTarget(next.route);
       const query=String(next.query||'');
       if(query!==renderedQuery){
         renderedQuery=query;input.value=query;
@@ -550,7 +556,7 @@
   function createHomeCard(item,callbacks={},className='bt-video-card'){
     const video=isRecommendationVideo(item.href);
     const card=createCard(item,callbacks,`${className}${video?' bt-home-recommendation':''}`);
-    if(video&&!card.__btReuseCard)setRecommendationTargets(card,Boolean(callbacks.openRecommendationsInNewTab&&callbacks.openRecommendationsInNewTab()));
+    if(video&&!card.__btReuseCard)setRecommendationTargets(card,Boolean(callbacks.openHomeRecommendationsInNewTab&&callbacks.openHomeRecommendationsInNewTab()));
     return card;
   }
   function withImagePriority(item,index,state){const rank=state?state.next++:index;const priority=rank<4?'high':rank<8?'low':false;return priority?{...item,imagePriority:priority}:item;}

@@ -34,7 +34,7 @@ def main():
                 report['browser']=context.browser.version
                 workers=[worker for worker in context.service_workers if '/src/background.js' in worker.url]
                 worker=workers[0] if workers else context.wait_for_event('serviceworker',predicate=lambda item:'/src/background.js' in item.url,timeout=15000)
-                worker.evaluate("() => chrome.storage.local.set({bilitubeCoreSettings:{openRecommendationsInNewTab:false}})")
+                worker.evaluate("() => chrome.storage.local.set({bilitubeCoreSettings:{openWatchRecommendationsInNewTab:false}})")
                 context.add_init_script(MUTATIONS)
                 page=context.new_page();page.goto(args.url,wait_until='domcontentloaded',timeout=25000)
                 for step in range(args.clicks+1):

@@ -129,15 +129,15 @@ python scripts/watch_startup_probe.py --decorated-only --seconds 8
 python scripts/watch_navigation_probe.py --clicks 5
 ```
 
-在临时、未登录 Edge 配置中加载实际扩展，关闭推荐视频新标签页选项后点击原生右侧推荐链接，记录每次切换的截图、播放器位置、媒体状态与 document timeOrigin，输出在 `output/watch-navigation/`。相同 timeOrigin 表示同页导航；检查要求完成指定次数且播放器保持在标题上方。实际媒体状态单独记录，网络失败或视频权限可能影响播放。
+在临时、未登录 Edge 配置中加载实际扩展，使用播放页推荐的默认当前页设置，点击原生右侧推荐链接，记录每次切换的截图、播放器位置、媒体状态与 document timeOrigin，输出在 `output/watch-navigation/`。相同 timeOrigin 表示同页导航；检查要求完成指定次数且播放器保持在标题上方。实际媒体状态单独记录，网络失败或视频权限可能影响播放。
 
-`watch_layout_smoke.py` 同时模拟原站清除播放器、工具栏和简介的 class，将原生高度设为 0、替换外层容器和延迟插入评论；检查原生区域顺序与点击、媒体节点身份、mini / wide / web 模式退出后的恢复以及销毁后监听释放。
+`watch_layout_smoke.py` 同时模拟原站清除播放器、工具栏、简介和推荐区的 class，将原生高度设为 0、替换外层容器和延迟插入评论；检查原生区域顺序与点击、推荐导航、媒体节点身份、mini / wide / web 模式退出后的恢复以及销毁后监听释放。
 
 `python scripts/watch_later_smoke.py` 使用模拟账号和接口数据，检查稍后再看的同站点读取与写入回退、加入和移除、视频切换及读取失败处理；不会访问或修改真实账号的数据。
 
 `python scripts/watch_controls_smoke.py` 使用离线播放器控件夹具检查桌面悬浮样式、动态出现的字幕和可选控件的垂直对齐、原生控件的显示状态与菜单交互。加上 `--live` 会在临时未登录的 Edge 配置中加载公开 Bilibili 视频和本地扩展，验证字幕菜单、播放、音量、时间输入、清晰度菜单及播放器模式切换；结果不代表登录态字幕切换验收。
 
-`python scripts/recommendation_navigation_smoke.py` 使用临时未登录配置检查实际扩展中的搜索焦点、新标签页设置保存和同步，以及首页与播放页推荐的鼠标和键盘导航。
+`python scripts/recommendation_navigation_smoke.py` 使用临时未登录配置检查实际扩展中首页与播放页推荐和搜索的打开方式，以及推荐设置分别保存和同步、修饰键与键盘导航。
 
 `python scripts/favorites_search_smoke.py` 使用隔离接口数据验证当前收藏夹搜索、分页、清除、无匹配结果、输入法、刷新与切换收藏夹；同时检查迟到响应隔离和搜索草稿保留。
 
@@ -218,4 +218,6 @@ Limitations: 未验证项目
 
 这些图片记录页面构图。交互、性能和复现步骤分别记录在对应的自动测试与浏览器验收证据中。
 
-普通视频页的播放器留白填充可运行 `python scripts/player_ambient_smoke.py`：隔离 Edge 夹具覆盖竖屏和超宽画面、原生控件命中、暂停与恢复、设置同步、帧不可绘制时的回退、视频替换和网页全屏。脚本需要 Python 的 Playwright 与 Pillow，截图写入 `output/player-ambient/`；真实页面的播放器兼容性仍需单独检查。
+普通视频页的播放器留白填充可运行 `python scripts/player_ambient_smoke.py`：隔离 Edge 夹具覆盖竖屏和超宽画面、视频帧与背景颜色跟随、原生控件命中、暂停与恢复、滚出视野、设置同步、帧不可绘制时的回退、无视频帧回调的兼容路径、视频替换和网页全屏。脚本需要 Python 的 Playwright 与 Pillow，截图写入 `output/player-ambient/`；真实页面的播放器兼容性仍需单独检查。
+
+`python scripts/player_ambient_benchmark.py --baseline-dir <旧版源码目录> --fps 30` 用 FFmpeg 生成本地视频，在相同 1920 × 1080 夹具中交替运行旧版和当前实现；`--fps 60` 测试 60 帧素材。结果包含更新频率、画布尺寸、回调时的采样间隔、丢帧与渲染线程耗时；若安装 `psutil` 还记录浏览器进程 CPU 时间。结果不等同于用户显卡的 GPU 占用或屏幕显示延迟。

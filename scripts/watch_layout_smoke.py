@@ -183,6 +183,29 @@ def main():
         assert page.locator('.bt-watch-author-row').count() == 1
         results.append({'checks': 'after narrowing a fallback page, late author data fills the reserved slot without shifting content'})
         page.close()
+
+        page = setup(1440)
+        page.evaluate("""() => {
+          window.__hydrated=true;
+          __watch.mount({bvid:'BVfixture',creator:{name:'海岸手记',href:'https://space.bilibili.com/123'}},
+            {canDecorateAuthor:()=>true,openWatchRecommendationsInNewTab:()=>false},'light',{href:location.href});
+        }""")
+        targets = page.evaluate("""() => {
+          const region=document.querySelector('.recommend-list-v1'),link=region.querySelector('a');
+          // Simulate Vue replacing its own class list immediately before a click.
+          region.className='recommend-list-v1';
+          const click=ctrlKey=>{
+            link.setAttribute('target','_blank');
+            link.addEventListener('click',e=>e.preventDefault(),{once:true});
+            link.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,button:0,ctrlKey}));
+            return link.getAttribute('target');
+          };
+          return {plain:click(false),modified:click(true)};
+        }""")
+        assert targets == {'plain': '_self', 'modified': '_blank'}, targets
+        results.append({'checks': 'same-tab recommendations survive native class rewrites and preserve Ctrl-click'})
+        page.evaluate('__watch.destroy()')
+        page.close()
         assert not errors, errors
         report = {'kind': 'isolated Watch layout fixtures', 'browser': browser.version, 'results': results, 'page_errors': errors}
         browser.close()

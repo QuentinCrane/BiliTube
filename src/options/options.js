@@ -6,10 +6,10 @@
   const defaults = {
     enabled:true, glassMode:false, theme:'system', density:'comfortable', motionMode:'full', showCardAuthor:true, showCardMeta:true, sidebarCollapsed:false, showSubscriptions:true,
     homeFollowedShelf:true, homeLiveShelf:true, homeBangumiShelf:true, homePopularShelf:true,
-    playerAmbient:true, hoverPreview:true, hoverPreviewDelay:500, watchLaterQuick:true, searchSuggestions:true, hideAds:true, openRecommendationsInNewTab:true,
+    playerAmbient:true, hoverPreview:true, hoverPreviewDelay:500, watchLaterQuick:true, searchSuggestions:true, hideAds:true, openHomeRecommendationsInNewTab:true, openWatchRecommendationsInNewTab:false,
   };
-  const ids = ['enabled','glassMode','theme','density','motionMode','showCardAuthor','showCardMeta','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','playerAmbient','hoverPreview','hoverPreviewDelay','watchLaterQuick','searchSuggestions','hideAds','openRecommendationsInNewTab'];
-  const checkboxIds = new Set(['enabled','glassMode','showCardAuthor','showCardMeta','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','playerAmbient','hoverPreview','watchLaterQuick','searchSuggestions','hideAds','openRecommendationsInNewTab']);
+  const ids = ['enabled','glassMode','theme','density','motionMode','showCardAuthor','showCardMeta','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','playerAmbient','hoverPreview','hoverPreviewDelay','watchLaterQuick','searchSuggestions','hideAds','openHomeRecommendationsInNewTab','openWatchRecommendationsInNewTab'];
+  const checkboxIds = new Set(['enabled','glassMode','showCardAuthor','showCardMeta','sidebarCollapsed','showSubscriptions','homeFollowedShelf','homeLiveShelf','homeBangumiShelf','homePopularShelf','playerAmbient','hoverPreview','watchLaterQuick','searchSuggestions','hideAds','openHomeRecommendationsInNewTab','openWatchRecommendationsInNewTab']);
   const status = document.getElementById('status');
   function apply(settings) {
     for (const id of ids) {

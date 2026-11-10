@@ -702,6 +702,6 @@ html.bt-native-adapted.bt-history-view-chosen[data-bt-native-route="history"] .h
 
 /* Keep the captured frame behind the native video and every player control. */
 .bt-player-ambient-active{position:relative;isolation:isolate;overflow:hidden}
-.bt-player-ambient-active>.bt-player-ambient{position:absolute;inset:-10%;width:120%;height:120%;object-fit:cover;filter:blur(24px) brightness(.65) saturate(1.1);pointer-events:none;z-index:0}
+.bt-player-ambient-active>.bt-player-ambient{position:absolute;inset:-10%;width:120%;height:120%;object-fit:cover;pointer-events:none;z-index:0}
 .bt-player-ambient-active>.bpx-player-video-wrap{position:relative;z-index:1;background:transparent}
 .bt-player-ambient-active>.bpx-player-video-wrap video{background:transparent!important}

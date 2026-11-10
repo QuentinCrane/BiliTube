@@ -3,21 +3,27 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.BiliTubePlayerAmbient = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createPlayerAmbientModule() {
-  // A small frame, updated at most ten times a second, is sufficient behind
-  // the heavily blurred background. The original video remains untouched.
-  const FRAME_EDGE = 192;
-  const FRAME_INTERVAL = 100;
+  // Blur the small frame before it is enlarged instead of filtering a full
+  // player-sized layer. Cap updates at 30 fps while tracking actual video frames.
+  const FRAME_EDGE = 48;
+  const FRAME_INTERVAL = 1000 / 30;
   const MEDIA_EVENTS = ['loadedmetadata', 'loadeddata', 'playing', 'pause', 'seeked', 'emptied', 'waiting', 'ended', 'error', 'resize'];
 
   function createController(doc = document) {
     const view = doc.defaultView || globalThis;
     let host = null, video = null, perch = null, canvas = null, context = null;
-    let mutationObserver = null, resizeObserver = null, frameTimer = null;
-    let enabled = false, waiting = false, failed = false;
+    let mutationObserver = null, resizeObserver = null, intersectionObserver = null;
+    let frameTimer = null, frameRequest = null, frameVideo = null, lastDraw = null, frameGeneration = 0;
+    let enabled = false, waiting = false, failed = false, inView = true;
 
     function stopFrames() {
+      frameGeneration += 1;
       if (frameTimer != null) view.clearTimeout(frameTimer);
+      if (frameRequest != null && frameVideo && typeof frameVideo.cancelVideoFrameCallback === 'function') frameVideo.cancelVideoFrameCallback(frameRequest);
       frameTimer = null;
+      frameRequest = null;
+      frameVideo = null;
+      lastDraw = null;
     }
 
     function removeBackground() {
@@ -40,27 +46,56 @@
       return innerGap || outerGap;
     }
 
-    function drawFrame() {
-      frameTimer = null;
+    function scheduleFrame() {
+      if (!video || video.paused || video.ended || waiting) return;
+      const source = video, generation = frameGeneration;
+      if (typeof video.requestVideoFrameCallback === 'function' && typeof video.cancelVideoFrameCallback === 'function') {
+        frameVideo = video;
+        frameRequest = video.requestVideoFrameCallback(now => {
+          if (generation === frameGeneration && source === video) onVideoFrame(now);
+        });
+      } else {
+        frameTimer = view.setTimeout(() => {
+          if (generation !== frameGeneration || source !== video) return;
+          frameTimer = null; drawFrame();
+        }, FRAME_INTERVAL);
+      }
+    }
+
+    function onVideoFrame(now) {
+      frameRequest = null;
+      frameVideo = null;
+      // Video callbacks are aligned to display refreshes, so 30 fps can
+      // arrive roughly 28 ms apart on a high-refresh-rate screen.
+      if (lastDraw != null && now - lastDraw < FRAME_INTERVAL - 6) { scheduleFrame(); return; }
+      drawFrame(now);
+    }
+
+    function drawFrame(frameTime = null) {
       if (!enabled || !video || !canvas || doc.hidden || failed || video.readyState < 2) return;
       try {
         const scale = Math.min(1, FRAME_EDGE / Math.max(video.videoWidth, video.videoHeight));
         const width = Math.max(1, Math.round(video.videoWidth * scale));
         const height = Math.max(1, Math.round(video.videoHeight * scale));
-        if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width; canvas.height = height;
+          // Resizing a canvas resets its drawing state.
+          context.filter = 'blur(1.5px) brightness(.65) saturate(1.1)';
+        }
         context.drawImage(video, 0, 0, width, height);
-        perch.classList.add('bt-player-ambient-active');
+        lastDraw = frameTime;
+        if (!perch.classList.contains('bt-player-ambient-active')) perch.classList.add('bt-player-ambient-active');
       } catch {
         // Some protected or unavailable media cannot be drawn to a canvas.
         failed = true;
         removeBackground();
         return;
       }
-      if (!video.paused && !video.ended && !waiting) frameTimer = view.setTimeout(drawFrame, FRAME_INTERVAL);
+      scheduleFrame();
     }
 
     function update() {
-      if (!enabled || !video || !perch || doc.hidden || failed || !hasVisibleBars()) {
+      if (!enabled || !video || !perch || doc.hidden || !inView || failed || !hasVisibleBars()) {
         removeBackground();
         return;
       }
@@ -98,12 +133,15 @@
       if (nextVideo !== video || nextPerch !== perch) {
         removeBackground();
         if (resizeObserver) resizeObserver.disconnect();
+        if (intersectionObserver) intersectionObserver.disconnect();
         video = nextVideo || null;
         perch = nextPerch || null;
         waiting = false;
         failed = false;
+        inView = true;
         if (resizeObserver && perch) resizeObserver.observe(perch);
         if (resizeObserver && video) resizeObserver.observe(video);
+        if (intersectionObserver && perch) intersectionObserver.observe(perch);
       }
       const anchor = video || perch || host.querySelector('.bpx-player-video-area') || host.querySelector('.bpx-player-container') || host;
       watchPath(anchor, !video);
@@ -132,6 +170,12 @@
       doc.addEventListener('visibilitychange', update);
       if (typeof view.MutationObserver === 'function') mutationObserver = new view.MutationObserver(refresh);
       if (typeof view.ResizeObserver === 'function') resizeObserver = new view.ResizeObserver(update);
+      if (typeof view.IntersectionObserver === 'function') intersectionObserver = new view.IntersectionObserver(entries => {
+        const entry = entries.find(item => item.target === perch);
+        if (!entry || inView === entry.isIntersecting) return;
+        inView = entry.isIntersecting;
+        update();
+      });
       refresh();
     }
 
@@ -147,8 +191,9 @@
       doc.removeEventListener('visibilitychange', update);
       if (mutationObserver) mutationObserver.disconnect();
       if (resizeObserver) resizeObserver.disconnect();
-      mutationObserver = null; resizeObserver = null;
-      host = null; video = null; perch = null; enabled = false; waiting = false; failed = false;
+      if (intersectionObserver) intersectionObserver.disconnect();
+      mutationObserver = null; resizeObserver = null; intersectionObserver = null;
+      host = null; video = null; perch = null; enabled = false; waiting = false; failed = false; inView = true;
     }
 
     return { mount, setEnabled, refresh, destroy };

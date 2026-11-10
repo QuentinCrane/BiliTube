@@ -76,7 +76,7 @@ test('home recommendation video links follow the new-tab preference without chan
   const {ui} = uiHarness();
   const make = enabled => {
     const outlet = new Element('main');
-    ui.renderHome(outlet,{category:'all',videos:[{kind:'video',bvid:'BV1TEST',title:'推荐视频',href:'https://www.bilibili.com/video/BV1TEST',author:'作者',authorHref:'https://space.bilibili.com/7'}],shelves:[],hasMore:false},{openRecommendationsInNewTab:()=>enabled});
+    ui.renderHome(outlet,{category:'all',videos:[{kind:'video',bvid:'BV1TEST',title:'推荐视频',href:'https://www.bilibili.com/video/BV1TEST',author:'作者',authorHref:'https://space.bilibili.com/7'}],shelves:[],hasMore:false},{openHomeRecommendationsInNewTab:()=>enabled});
     return outlet;
   };
   const enabled=make(true),disabled=make(false);
@@ -84,6 +84,18 @@ test('home recommendation video links follow the new-tab preference without chan
   assert.equal(enabled.querySelector('.bt-card-title').attributes.target,'_blank');
   assert.equal(enabled.querySelector('.bt-card-author').attributes.target,undefined);
   assert.equal(disabled.querySelector('.bt-card-title').attributes.target,undefined);
+});
+
+test('topbar search opens a new tab only on playback routes and updates without losing a draft', () => {
+  const {ui}=uiHarness(),header=ui.createTopbar({route:'home'});
+  const form=header.querySelector('.bt-search'),input=header.querySelector('.bt-search-input');
+  input.value='unfinished draft';assert.equal(form.attributes.target,undefined);
+  for(const route of ['watch','playlist-watch','bangumi-watch','course-watch']){
+    ui.updateTopbar(header,{route});assert.equal(form.attributes.target,'_blank');assert.equal(form.attributes.rel,'noopener');
+    assert.equal(input.value,'unfinished draft');
+  }
+  ui.updateTopbar(header,{route:'home'});
+  assert.equal(form.attributes.target,undefined);assert.equal(form.attributes.rel,undefined);assert.equal(input.value,'unfinished draft');
 });
 
 test('account and style updates preserve the search node and unsubmitted draft', () => {
@@ -326,9 +338,9 @@ test('video-to-video SPA navigation keeps the Watch decorator mounted', async ()
   assert.equal(h.watchCalls.updateChrome,1);
 });
 
-test('changing recommendation tab preference updates Watch without remounting the player', async () => {
+test('changing Watch recommendation preference updates links without remounting the player', async () => {
   const h=appHarness('https://www.bilibili.com/video/BVfirst/');
-  await h.changeSettings({openRecommendationsInNewTab:false});
+  await h.changeSettings({openWatchRecommendationsInNewTab:true});
   assert.equal(h.watchCalls.updateRecommendationPreference,1);
   assert.equal(h.watchCalls.mount,1);
   assert.equal(h.watchCalls.destroy,0);
