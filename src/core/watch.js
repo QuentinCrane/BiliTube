@@ -1,10 +1,11 @@
 (function init(root, factory) {
   const ui = root && root.BiliTubeUI || (typeof require === 'function' ? require('./ui.js') : null);
   const extract = root && root.BiliTubeExtract || (typeof require === 'function' ? require('./extract.js') : null);
-  const api = factory(ui, extract);
+  const ambient = root && root.BiliTubePlayerAmbient || (typeof require === 'function' ? require('./player-ambient.js') : null);
+  const api = factory(ui, extract, ambient);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.BiliTubeWatch = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createWatchModule(UI, Extract) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function createWatchModule(UI, Extract, Ambient) {
   const T = (key, fallback, substitutions) => {
     const i18n = typeof globalThis !== 'undefined' && globalThis.BiliTubeI18n;
     return i18n && typeof i18n.t === 'function' ? i18n.t(key, fallback, substitutions) : fallback;
@@ -48,6 +49,8 @@
     let recommendationListening = false;
     const recommendationTargets = new Map();
     const marked = new Set();
+    const ambient = Ambient && Ambient.createController(doc);
+    let ambientHost = null;
 
     function first(selectors, root = doc) {
       for (const selector of selectors) {
@@ -143,6 +146,14 @@
       restoreRecommendationTargets();
     }
 
+    function syncAmbient() {
+      if (!ambient) return;
+      const host = first(REGION_DEFS[4].selectors);
+      const enabled = !callbacks.playerAmbient || callbacks.playerAmbient();
+      if (host !== ambientHost) { ambientHost = host; ambient.mount(host, enabled); }
+      else { ambient.setEnabled(enabled); if (host && enabled) ambient.refresh(); }
+    }
+
     function discoverRegions() {
       pruneDetachedMarkers();
       let found = 0;
@@ -205,6 +216,7 @@
           discoverRegions();
           startObservers(ready);
           syncPlayerMode();
+          syncAmbient();
         }
       }
     }
@@ -509,6 +521,7 @@
       }, 6000);
       discoverRegions();
       syncPlayerMode();
+      syncAmbient();
       doc.documentElement.classList.add('bt-watch-decorated','bt-watch-ready');
       doc.documentElement.classList.remove('bilitube-watch-preflight');
       if (!recommendationListening) { doc.addEventListener('click', recommendationClick, true); doc.addEventListener('keydown', recommendationKeydown, true); recommendationListening = true; }
@@ -536,7 +549,7 @@
       return false;
     }
 
-    function updateContext(nextData = {}) { watchData = { ...watchData, ...nextData }; ensureAuthorRow(); syncPlayerMode(); }
+    function updateContext(nextData = {}) { watchData = { ...watchData, ...nextData }; ensureAuthorRow(); syncPlayerMode(); syncAmbient(); }
     function updateTheme(theme) { if (layer) layer.dataset.btTheme = theme; }
     function toggleSidebar() { if (drawer) drawer.toggle(); }
     function revealNativeMeta() { clearMarkers(); discoverRegions(); }
@@ -550,6 +563,8 @@
       retryTimer = null;
       retryCount = 0;
       stopObservers();
+      if (ambient) ambient.destroy();
+      ambientHost = null;
       if (recommendationListening) { doc.removeEventListener('click', recommendationClick, true); doc.removeEventListener('keydown', recommendationKeydown, true); }
       recommendationListening = false;
       restoreRecommendationTargets();
@@ -569,7 +584,7 @@
       }
     }
 
-    return { mount, updateContext, updateChrome, updateTheme, updateRecommendationPreference, toggleSidebar, destroy, revealNativeMeta };
+    return { mount, updateContext, updateChrome, updateTheme, updateRecommendationPreference, syncAmbient, toggleSidebar, destroy, revealNativeMeta };
   }
 
   return { createDecorator, MAX_RETRIES };

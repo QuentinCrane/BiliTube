@@ -66,6 +66,7 @@
       <section class="group" id="playback">
         <div class="group-head"><h2 data-i18n="playback">播放与预览</h2><p data-i18n="playback_desc">播放页业务交互保持 Bilibili 原生，卡片预览由 BiliTube 提供。</p></div>
         <div class="card">
+          <label class="row"><span><strong data-i18n="player_ambient">播放器黑边模糊填充</strong><small data-i18n="player_ambient_desc">用当前画面的模糊颜色填充播放区域的留白，保持原画比例。</small></span><input id="playerAmbient" type="checkbox"></label>
           <label class="row"><span><strong data-i18n="hover_preview">Hover 视频预览</strong><small data-i18n="hover_preview_desc">鼠标悬浮缩略图时播放无声预览，并保留底部拖动进度条。</small></span><input id="hoverPreview" type="checkbox"></label>
           <label class="row"><span><strong data-i18n="preview_delay">预览启动延迟</strong><small data-i18n="preview_delay_desc">避免鼠标快速扫过卡片时频繁请求视频。</small></span><select id="hoverPreviewDelay" aria-label="预览启动延迟" data-i18n-attr="aria-label:preview_delay"><option value="250">250 ms</option><option value="500">500 ms</option><option value="750">750 ms</option></select></label>
           <label class="row"><span><strong data-i18n="watch_later_quick">稍后再看快捷按钮</strong><small data-i18n="watch_later_quick_desc">Hover 视频缩略图时，在右上角显示 YouTube 式时钟按钮。</small></span><input id="watchLaterQuick" type="checkbox"></label>

@@ -45,6 +45,7 @@ BiliTube 是 Bilibili 的视觉和信息架构层。必须保留：
 | `src/core/ui.js` | DOM factory、页面 renderer、渐进式图片 |
 | `src/core/shell.js` | Header、Sidebar、route outlet |
 | `src/core/preview.js` | Hover Preview observer、media 和 seek rail |
+| `src/core/player-ambient.js` | 普通视频页的播放器留白模糊填充 |
 | `src/core/watch.js` | Native-first Watch 区域发现和装饰 |
 | `src/core/native-adapter.js` | 复杂页面的外层适配 |
 | `src/options/` | 设置页与 `chrome.storage.local` |

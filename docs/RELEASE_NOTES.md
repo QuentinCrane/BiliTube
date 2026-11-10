@@ -21,6 +21,7 @@
 
 ## Changes in v0.12.6
 
+- 普通视频播放器按画面比例产生的留白支持模糊填充，可在设置中关闭；视频内容和原生控件保持原样。
 - 当前收藏夹支持按关键词搜索、清除和结果分页；搜索、刷新及切换收藏夹时隔离旧响应。
 - 播放页的原生点赞栏和简介在原站更新类名后继续显示在评论之前；同页切换视频后“稍后再看”使用当前视频身份，并支持同站点登录凭据回退。
 - 列表更新复用原卡片与媒体节点；分页动画只处理新增卡片，长列表重排跳过已知离屏卡片，Watch 按批处理原生区域更新。
@@ -30,11 +31,11 @@
 
 ```text
 node --test tests/*.test.js       315 passed
-node scripts/verify.mjs           passed (28 manifest resources, 22 JavaScript files)
+node scripts/verify.mjs           passed (29 manifest resources, 23 JavaScript files)
 git diff --check                  passed
 ```
 
-浏览器定向验证覆盖首页进入播放页、相关推荐同页切换和公开收藏夹接口检索；隔离夹具覆盖收藏夹搜索、稍后再看、播放器布局和刷新。完整登录态人工验收待执行，验收范围见 [`PAGE_AUDIT.md`](../PAGE_AUDIT.md)。
+浏览器定向验证覆盖首页进入播放页、公开竖屏视频的模糊填充及设置切换、相关推荐同页切换和公开收藏夹接口检索；隔离夹具覆盖收藏夹搜索、稍后再看、播放器布局和刷新。完整登录态人工验收待执行，验收范围见 [`PAGE_AUDIT.md`](../PAGE_AUDIT.md)。
 
 ## Known limitations
 

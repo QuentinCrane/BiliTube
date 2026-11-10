@@ -201,6 +201,8 @@
   "home_popular_desc": { "message": "Show a shelf of popular videos." },
   "playback": { "message": "Playback & preview" },
   "playback_desc": { "message": "Playback interactions remain native to Bilibili; BiliTube provides card previews." },
+  "player_ambient": { "message": "Blurred player margins" },
+  "player_ambient_desc": { "message": "Fill empty player margins with blurred colors from the current frame while preserving the video aspect ratio." },
   "hover_preview": { "message": "Hover video preview" },
   "hover_preview_desc": { "message": "Play a muted preview on thumbnail hover while keeping the seek rail available." },
   "preview_delay": { "message": "Preview start delay" },

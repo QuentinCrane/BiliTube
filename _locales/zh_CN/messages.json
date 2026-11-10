@@ -201,6 +201,8 @@
   "home_popular_desc": { "message": "显示热门视频 Shelf。" },
   "playback": { "message": "播放与预览" },
   "playback_desc": { "message": "播放页业务交互保持 Bilibili 原生，卡片预览由 BiliTube 提供。" },
+  "player_ambient": { "message": "播放器黑边模糊填充" },
+  "player_ambient_desc": { "message": "用当前画面的模糊颜色填充播放区域的留白，保持原画比例。" },
   "hover_preview": { "message": "Hover 视频预览" },
   "hover_preview_desc": { "message": "鼠标悬浮缩略图时播放无声预览，并保留底部拖动进度条。" },
   "preview_delay": { "message": "预览启动延迟" },

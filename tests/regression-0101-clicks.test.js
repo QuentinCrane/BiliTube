@@ -7,11 +7,11 @@ const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 test('ordinary BiliTube anchors keep native browser navigation and are never prevented by bindLink', () => {
   const ui = read('src/core/ui.js');
-  const m = ui.match(/function bindLink\(node,href,callbacks\)\{([\s\S]*?)\}\n\s*function avatar/);
-  assert.ok(m, 'bindLink helper should exist');
-  assert.doesNotMatch(m[1], /preventDefault\(/);
-  assert.doesNotMatch(m[1], /callbacks\.navigate/);
-  assert.match(m[1], /node\.href=href/);
+  const bindLine = ui.split(/\r?\n/).find(line => line.includes('function bindLink(')) || '';
+  assert.ok(bindLine, 'bindLink helper should exist');
+  assert.doesNotMatch(bindLine, /preventDefault\(/);
+  assert.doesNotMatch(bindLine, /callbacks\.navigate/);
+  assert.match(bindLine, /node\.href=href/);
 });
 
 test('topbar and sidebar anchors do not depend on the MAIN-world navigation bridge', () => {

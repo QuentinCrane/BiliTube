@@ -10,7 +10,7 @@ BiliTube owns the outer shell, page composition, theme tokens, card presentation
 
 ### Native-first on Watch
 
-普通 `/video/BV...` 页面使用 `decorate` 策略。运行时只发现并标记 Bilibili 已经创建的区域，再通过 CSS 调整外层几何；不移动、克隆或替换播放器、原生 toolbar、简介、评论和相关推荐。
+普通 `/video/BV...` 页面使用 `decorate` 策略。运行时发现并标记 Bilibili 已创建的区域，通过 CSS 调整外层几何；播放器留白模糊填充使用不接收点击的画布，不移动、克隆或替换播放器、原生 toolbar、简介、评论和相关推荐。
 
 ### Real browser navigation
 
@@ -42,7 +42,7 @@ manifest.json
 ├── core/motion.js                  local flip, append enter and motion gating
 ├── core/shell.js                   persistent BiliTube shell and route outlet
 ├── core/native-adapter.js          outer adaptation for complex native pages
-├── core/actions.js                 small action registry
+├── core/player-ambient.js          blurred background for player margins
 ├── core/watch.js                   native Watch discovery and decoration
 └── core/app.js                     runtime state, route mount and API orchestration
 
@@ -89,7 +89,7 @@ Bilibili API endpoints
 background response -> Data.normalize* -> app state -> UI renderer
 ```
 
-The service worker owns network calls so the page-world runtime does not directly depend on Bilibili CORS behavior. WBI-capable requests prefer the signed endpoint and keep a legacy endpoint fallback where the implementation provides one. Short-lived responses are cached in memory to avoid duplicate requests while a page is active.
+The service worker handles normal API calls. A narrow page-origin fallback supports follow and Watch Later when the worker cannot use the site's credentials. WBI-capable requests prefer the signed endpoint and keep a legacy endpoint fallback where the implementation provides one. Short-lived responses are cached in memory to avoid duplicate requests while a page is active.
 
 The content runtime treats normalized data as the UI contract. Renderers should not reach into raw Bilibili response shapes or assume that one API field is always present.
 
@@ -129,6 +129,8 @@ Rules that keep the layer safe:
 ## Native-first Watch boundary
 
 `core/watch.js` discovers the native left and right columns, player, title/info, toolbar, description, comments and recommendation roots. It adds semantic markers and a simple author mirror, then observes only the Watch layout and player state that can legitimately change.
+
+`core/player-ambient.js` can place a pointer-transparent canvas behind the native video to fill aspect-ratio margins. It removes the canvas when disabled or unavailable; the original video and controls remain owned by Bilibili.
 
 The following are deliberately outside BiliTube ownership:
 

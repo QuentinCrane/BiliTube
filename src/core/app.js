@@ -22,7 +22,7 @@
 
   const CLIENT = 'bilitube-content-core';
   const BRIDGE = 'bilitube-bridge-core';
-  const defaults = { enabled:true, glassMode:false, theme:'system', density:'comfortable', motionMode:'full', showCardAuthor:true, showCardMeta:true, sidebarCollapsed:false, showSubscriptions:true, homeFollowedShelf:true, homeLiveShelf:true, homeBangumiShelf:true, homePopularShelf:true, hoverPreview:true, hoverPreviewDelay:500, watchLaterQuick:true, searchSuggestions:true, hideAds:true, openRecommendationsInNewTab:true };
+  const defaults = { enabled:true, glassMode:false, theme:'system', density:'comfortable', motionMode:'full', showCardAuthor:true, showCardMeta:true, sidebarCollapsed:false, showSubscriptions:true, homeFollowedShelf:true, homeLiveShelf:true, homeBangumiShelf:true, homePopularShelf:true, playerAmbient:true, hoverPreview:true, hoverPreviewDelay:500, watchLaterQuick:true, searchSuggestions:true, hideAds:true, openRecommendationsInNewTab:true };
   const homeSectionSettings = {followed:'homeFollowedShelf',live:'homeLiveShelf',bangumi:'homeBangumiShelf',popular:'homePopularShelf'};
   let settings = { ...defaults };
   let generation = 0;
@@ -350,7 +350,7 @@
     if (!csrf) { showToast(T('login_required','请先登录 Bilibili')); return ''; }
     return csrf;
   }
-  const callbacks={ canDecorateAuthor:()=>bridgeState.hydrated||!document.querySelector('#app'), loadMore, retryFeed, refreshCurrent, searchFavorites, toggleTheme,toggleVisualStyle,toggleSidebar,openSettings,bindPreview,showToast,beforeRender:()=>{disconnectInfiniteObserver();preview.destroy();},afterReconcile:()=>preview.prune(),followSpace,requestSearchSuggestions,requestSearchDefaultWord,requestSearchTrending,toggleWatchLater,isWatchLater,showWatchLaterQuick:()=>settings.watchLaterQuick!==false,showCardAuthor:()=>settings.showCardAuthor!==false,showCardMeta:()=>settings.showCardMeta!==false,openRecommendationsInNewTab:()=>settings.openRecommendationsInNewTab!==false };
+  const callbacks={ canDecorateAuthor:()=>bridgeState.hydrated||!document.querySelector('#app'), loadMore, retryFeed, refreshCurrent, searchFavorites, toggleTheme,toggleVisualStyle,toggleSidebar,openSettings,bindPreview,showToast,beforeRender:()=>{disconnectInfiniteObserver();preview.destroy();},afterReconcile:()=>preview.prune(),followSpace,requestSearchSuggestions,requestSearchDefaultWord,requestSearchTrending,toggleWatchLater,isWatchLater,playerAmbient:()=>settings.playerAmbient!==false,showWatchLaterQuick:()=>settings.watchLaterQuick!==false,showCardAuthor:()=>settings.showCardAuthor!==false,showCardMeta:()=>settings.showCardMeta!==false,openRecommendationsInNewTab:()=>settings.openRecommendationsInNewTab!==false };
 
   function mergeUnique(existing, incoming, keyFn) {
     const out = Array.isArray(existing) ? existing.slice() : [];
@@ -905,6 +905,7 @@
         else if(currentContext.strategy==='adapt')nativeAdapter.updateChrome(chromeData(),callbacks);
       }
       if(changed.includes('openRecommendationsInNewTab')&&currentContext&&currentContext.strategy==='decorate')watch.updateRecommendationPreference();
+      if(changed.includes('playerAmbient')&&currentContext&&currentContext.strategy==='decorate')watch.syncAmbient();
       if(currentContext&&currentContext.strategy==='replace'&&shell.getRoot()){
         if(changed.includes('sidebarCollapsed'))shell.setCollapsed(settings.sidebarCollapsed);
         if(changed.includes('showSubscriptions'))shell.updateChrome(chromeData());
