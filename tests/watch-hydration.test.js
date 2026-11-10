@@ -33,4 +33,9 @@ test('MAIN-world bridge publishes hydration readiness once, across isolated-worl
   assert.equal(messages.at(-1).payload.hydrated,false);
   app.__vue__._isMounted=true;poll();assert.equal(messages.at(-1).payload.hydrated,true);
   const count=messages.length;poll();assert.equal(messages.length,count);
+  // The native SPA can change video data after the URL notification while
+  // the Vue app remains mounted; publish the new identity exactly once.
+  context.__INITIAL_STATE__={videoData:{bvid:'BVnext',aid:22}};
+  poll();assert.equal(messages.at(-1).payload.video.bvid,'BVnext');
+  const afterVideo=messages.length;poll();assert.equal(messages.length,afterVideo);
 });

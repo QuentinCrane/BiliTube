@@ -6,7 +6,7 @@
 
 - Project: BiliTube
 - Repository: `https://github.com/QuentinCrane/BiliTube`
-- Extension version: `0.12.5`
+- Extension version: `0.12.6`
 - Manifest: Manifest V3
 - Main branch: `main`
 - License: MIT
@@ -82,7 +82,7 @@ node scripts/verify.mjs
 git diff --check
 ```
 
-当前验证覆盖 249 项自动测试，以及临时未登录 Edge 配置中的相关推荐同页切换；探测后播放器仍可见并持续播放。以下真实页面项目待登录态人工验收：
+当前验证覆盖 315 项自动测试，以及临时未登录 Edge 配置中的首页进入播放页、相关推荐同页切换和公开收藏夹接口检索。稍后再看和收藏夹搜索另有隔离浏览器夹具。以下真实页面项目待登录态人工验收：
 
 1. 首页无限滚动时旧图片保持清晰；
 2. Watch 原生播放器、toolbar、评论和相关推荐；

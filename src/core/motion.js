@@ -33,6 +33,7 @@
   function createController(doc = typeof document !== 'undefined' ? document : null, options = {}) {
     const win = doc && (doc.defaultView || doc.parentWindow) || (typeof window !== 'undefined' ? window : null);
     const previewActive = typeof options.previewActive === 'function' ? options.previewActive : () => false;
+    const shouldMeasure = typeof options.shouldMeasure === 'function' ? options.shouldMeasure : () => true;
     const limits = { ...LIMITS, ...(options.limits || {}) };
     const running = new Map(); // element -> Animation
     let version = 0;
@@ -102,7 +103,7 @@
       const cards = [];
       const nodes = new Set();
       for (const node of container.querySelectorAll('article')) {
-        if (!node.__btCardKey) continue;
+        if (!node.__btCardKey || !shouldMeasure(node)) continue;
         const rect = node.getBoundingClientRect();
         if (!rect.width || !rect.height) continue;
         if (rect.bottom <= 0 || rect.top >= height) continue;
@@ -143,16 +144,16 @@
       return count;
     }
 
-    // Newly appended cards fade in; the existing ones are never replayed.
-    function enterNew(container, beforeNodes) {
-      if (!container || !allowed('append')) return 0;
-      if (!(beforeNodes instanceof Set)) return 0;
+    // The append renderer supplies the new cards directly, so long feeds do
+    // not need a full before/after scan to decide which cards may animate.
+    function enterNew(cards) {
+      if (!cards || !allowed('append')) return 0;
       const height = viewportHeight();
       const duration = motionMode() === 'subtle' ? limits.durationSubtle : limits.enterDuration;
       let count = 0;
-      for (const node of container.querySelectorAll('article')) {
+      for (const node of cards) {
         if (count >= limits.maxNewCards) break;
-        if (beforeNodes.has(node) || !canAnimateNode(node)) continue;
+        if (!canAnimateNode(node)) continue;
         const rect = node.getBoundingClientRect();
         if (!rect.width || !rect.height) continue;
         if (rect.top > height + 200) continue; // below the fold: skip the paint
@@ -170,11 +171,6 @@
       return count;
     }
 
-    function snapshotCards(container) {
-      const nodes = new Set();
-      if (container) for (const node of container.querySelectorAll('article')) nodes.add(node);
-      return nodes;
-    }
     function prepare() {
       // Called just before a mutation: a card that is still flying would keep a
       // composited transform while its subtree is rewritten.
@@ -183,7 +179,7 @@
     function isActive() { return running.size > 0; }
     function destroy() { cancel(); running.clear(); }
 
-    return { shouldAnimate, allowed, measure, play, enterNew, snapshotCards, prepare, cancel, isActive, destroy, motionMode, reducedMotion };
+    return { shouldAnimate, allowed, measure, play, enterNew, prepare, cancel, isActive, destroy, motionMode, reducedMotion };
   }
 
   return { LIMITS, EASING, shouldAnimate, createController };

@@ -149,3 +149,103 @@ node scripts/verify.mjs
 ```
 
 本次模拟基线和修改后原始结果分别记录在 `output/startup-performance/baseline-final.json`、`output/startup-performance/optimized-final.json`；该目录由 Git 忽略。
+
+## 批量更新与分页动效（2026-11-09）
+
+- Watch 的 MutationObserver 按一次交付合并新增子树：播放器模式、失效标记和作者区每批只检查一次。每个新增子树仍会查找原生区域，新的 `#app` 也会重新接入观察，播放页宽屏切换和原生区域替换仍可恢复。
+- 分页渲染直接把本次新增卡片交给动效层，避免在追加前后分别遍历全部卡片。新增卡片的动画数量上限、预览播放时的保护和原有卡片、图片实例保留。
+
+在同一台机器的无头 Edge 157.0.4341.42 中，使用 `scripts/performance_audit.py` 的固定数据和 1920 × 1080 视口分别运行修改前、修改后的代码。对比使用提交 `41e8315` 的源码快照；优化快照只替换本次修改的四个核心脚本，样式和其他文件保持相同：
+
+| 场景 | 修改前 | 修改后 |
+| --- | ---: | ---: |
+| 一批 200 个评论节点及一个延迟出现的推荐区域引发的 DOM 查询 | 1,206 | 205 |
+| 500 张卡片后追加 30 张时，动效前后查询匹配到的 `article` 总数 | 1,030（500 + 530） | 0 |
+
+两项是 fixture 中的确定性工作量计数，不代表整页耗时或实际帧率；分页同步耗时的单次测量为 18.0 → 18.2 ms，样本不足以证明耗时改善。测量同时验证了原有卡片和图片未替换、只对新增卡片播放动效、播放页区域延迟加载、原生 `#app` 替换以及宽屏往返后的观察器恢复。主题探针的两组采样中最大帧间隔分别约为 62.6 ms 和 83.4 ms，主题卡顿尚未解决。
+
+验证通过：306 项 Node 测试、`node scripts/verify.mjs`、`git diff --check`，以及 `feature_parity_smoke.py`、`refresh_experience_smoke.py`、`media_continuity_smoke.py` 和性能探针。临时未登录配置访问公开 Bilibili 视频，连续两次同文档推荐跳转后播放器均在标题上方并保持播放；登录态私人数据和写操作未验收。
+
+```powershell
+python scripts/performance_audit.py --runs 3 --output output/razor-20261109/report.json
+python scripts/feature_parity_smoke.py
+python scripts/refresh_experience_smoke.py
+python scripts/media_continuity_smoke.py
+python scripts/watch_navigation_probe.py --clicks 2
+node --test tests/*.test.js
+node scripts/verify.mjs
+```
+
+本次原始结果位于忽略目录 `output/razor-20261109/`；比较旧版本时可用 `--source-dir` 和 `--measure-only`。旧版本没有动效模块时，分页动效场景会标记为跳过。
+
+## 首页长列表与分类首屏（2026-11-09）
+
+首页刷新或专题到达时，同路由重排动效此前会读取全部卡片的位置。现在复用预览组件已有的 IntersectionObserver 可见性状态，跳过已知远离视口的卡片，不另建观察器；未绑定预览、观察结果尚未到达或关闭预览时仍按原方式测量。观察结果可能短暂滞后于快速滚动，此时可能跳过一次卡片动画，但不影响内容更新。
+
+使用同一份样式和数据的前后源码快照，在无头 Edge 157.0.4341.42、1920 × 1080、设备缩放 2 的 500 卡片首页上，分别滚动到顶部、中部和底部后各刷新 5 次：
+
+| 位置 | 卡片位置读取次数（前 → 后） | 同步刷新耗时中位数（前 → 后） |
+| --- | ---: | ---: |
+| 顶部 | 516 → 32 | 6.5 → 7.1 ms |
+| 中部 | 520 → 44 | 7.0 → 3.5 ms |
+| 底部 | 512 → 28 | 27.8 → 20.8 ms |
+
+耗时包含其他渲染工作，样本和机器负载会造成波动；这组数据不能代表真实帧率，也不表示每次刷新都会更快。探针验证了顶部可见卡片重排、动画自然结束、图片实例保留，以及关闭预览后的测量回退。
+
+首页的科技等普通分类以及直播、番剧分类，现在也可在 `DOMContentLoaded` 前开始首个分类请求，并在挂载时复用成功响应；关闭相应专题时不发预读，失败会重试，导航或设置变化会释放等待。模拟原网页延迟脚本 1,200 ms、接口响应 350 ms 的 3 次采样中，科技分类第一张卡片插入 DOM 的中位时间为 1,747 → 1,500 ms，直播分类为 1,772 → 1,451 ms。这仅说明模拟条件下的请求重叠效果，不代表真实网络或首次绘制时间；已经发出的后台请求无法随路由取消底层网络。
+
+312 项 Node 测试、项目自检、首页性能和首屏夹具、刷新/媒体连续性/多页面功能回归通过。临时未登录浏览器访问真实首页的全部、科技、直播和番剧分类均加载出卡片。仓库既有 `motion_smoke.py` 在本机虚拟时间模式下的 `clearedAfter` 和 `leftoverTransform` 两项在修改前后均失败；首页实时浏览器探针中同类重排动画可正常结束。
+
+```powershell
+python scripts/homepage_performance_probe.py --runs 5
+python scripts/startup_performance_probe.py --category tech --runs 3
+python scripts/startup_performance_probe.py --category live --runs 3
+python scripts/media_continuity_smoke.py
+python scripts/refresh_experience_smoke.py
+node --test tests/*.test.js
+node scripts/verify.mjs
+```
+
+本次源码快照和原始结果位于忽略目录 `output/homepage-performance/`。
+
+## 全页面暴力压测与 reconcile 热路径（2026-11-09）
+
+新增 `scripts/perf_stress.py`：对全部渲染管线做大样本量压测——首页 500 卡片连续 50 次同路由重渲染、1000 卡片连续 100 次重渲染，搜索 300 行、动态 230 条、稍后再看 / 收藏 / 空间各 200 条各 30 次重渲染，Watch 播放页 10 批 × 200 评论节点与 50 次 Vue 类名改写，原生适配页 50 次 Chrome 更新与 10 批插入，预览 500 卡绑定销毁 × 10，以及 500 节点 DOM 提取。每场景记录同步墙钟时间与确定性工作量计数（`createElement`、`querySelector(All)`、`matches`、`getBoundingClientRect`）。观察器类场景用微任务冲刷测量，避免 `setTimeout` 延迟混入。
+
+本轮改动集中在同路由重渲染热路径：
+
+- `reconcile.js`：diff 时顺手收集待恢复的延迟缩略图与待绑定的预览节点，去掉收尾对整棵连接树的两次 `img`/`article` 全扫描；复用图节点在属性同步时补拷暂存的 `__btDeferredSrc`；`createReuse` 的复用键改为三层 Map 嵌套。
+- `ui.js`：`cardSignature` 按条目对象缓存（WeakMap），同一批数据的后续渲染不再逐卡重新序列化；搜索行详情补充（原地变更条目后调用 `updateSearchRow`）会先作废缓存。`markCard` 的图片键改用字符串切片解析，去掉每卡一次 `new URL`。
+- `watch.js`：类名观察器恢复缺失标记时不再走完整区域发现与观察器重建；`ensureAuthorRow` 的未变化快速路径提前到主列查询之前，评论批次每批少 4 次选择器查询。
+
+同时修复一个缩略图更新缺陷：同一卡片封面变更时，复用的 `img` 节点会同步暂存节点的属性集（不含 `src`），延迟来源又留在被丢弃的暂存节点上，结果 `src` 被清掉且无人恢复。现在延迟来源会随属性同步拷贝到复用节点，压测中的 `home_thumbnail_change` 场景在基线上失败（`src=null`）、修复后通过。
+
+在无头 Edge 157.0.4341.42、1920 × 1080、设备缩放 2 下，对同一份夹具分别运行优化前后源码快照（`--source-dir`），每场景迭代取中位数：
+
+| 场景 | 修改前 | 修改后 |
+| --- | ---: | ---: |
+| 500 卡首页同内容重渲染 | 5.7 ms | 3.25 ms |
+| 500 卡首页单条元数据变化 | 6.55 ms | 5.9 ms |
+| 500 卡首页封面变化 | 失败（src 丢失） | 4.35 ms |
+| 500 卡首页 Shelf 插入/移除 | 14.0 ms | 12.75 ms |
+| 1000 卡首页连续 100 次重渲染 | 13.65 ms | 8.55 ms |
+| 搜索 300 行重渲染 | 5.85 ms | 3.15 ms |
+| 动态 230 条重渲染 | 2.6 ms | 1.5 ms |
+| 稍后再看 200 行重渲染 | 2.0 ms | 1.1 ms |
+| 收藏 200 卡重渲染 | 2.15 ms | 1.4 ms |
+| 空间 200 卡重渲染 | 2.1 ms | 1.45 ms |
+| Watch 每次 Vue 类名改写的查询 | 31 | 0 |
+
+各重渲染场景的 `querySelector(All)` 计数从 7–8 降到 5–6（收尾两次全树扫描消失）。Watch 评论批（200 节点）仍为每批约 204 次查询，与既有预算持平；提取回退路径的 898 次查询未动。首页冷启动（约 8,100 个节点创建）与分页追加无明显变化。单次测量有波动，表中差距小的行（元数据、Shelf、封面）不足以宣称稳定收益。
+
+验证：312 项 Node 测试、`node scripts/verify.mjs`、`git diff --check`，`scripts/performance_audit.py --runs 3` 的卡片与图片保留、重复键、Watch 晚到区域与类名恢复、宽屏往返、分页动效断言全部通过（同内容刷新中位数 3.5 ms，封面/图片实例保留正常）。登录态与真实网络下的交互响应未做生产验收。
+
+```powershell
+python scripts/perf_stress.py --output output/perf-stress/report.json
+python scripts/perf_stress.py --source-dir <源码快照目录> --measure-only --output <结果路径>
+python scripts/performance_audit.py --runs 3
+node --test tests/*.test.js
+node scripts/verify.mjs
+```
+
+原始数据位于忽略目录 `output/perf-stress/`（`baseline.json`、`optimized.json` 及源码快照）。

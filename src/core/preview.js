@@ -21,6 +21,7 @@
     const trackPointer=event=>{if(active)active.point={x:event.clientX,y:event.clientY};};
     const observer = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver((entries) => {
       for (const entry of entries) {
+        if (!bindings.has(entry.target)) continue;
         if (entry.isIntersecting) offscreen.delete(entry.target);
         else {
           offscreen.add(entry.target);
@@ -194,6 +195,9 @@
     // Read-only probe for the motion layer: a playing preview must never become
     // a flipped element, otherwise the video layer is re-composited mid-frame.
     function isActive(){return Boolean(active);}
+    // Reuse the preview observer's 240px margin for optional layout animation.
+    // Unknown or unbound cards stay eligible until an observation arrives.
+    function isKnownOffscreen(card){return offscreen.has(card);}
     function resume(){
       if(!active||shouldRetain()||typeof active.card.matches!=='function')return;
       const rect=active.point&&active.card.getBoundingClientRect();
@@ -201,7 +205,7 @@
       if(!inside&&!active.card.matches(':hover')&&!active.card.contains(document.activeElement))cleanupActive();
     }
 
-    return { bind, resolve, destroy, prune, resume, isActive, seekTime: Model && Model.seekTime };
+    return { bind, resolve, destroy, prune, resume, isActive, isKnownOffscreen, seekTime: Model && Model.seekTime };
   }
   return { createController };
 });

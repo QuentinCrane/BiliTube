@@ -244,6 +244,62 @@ test('a failed early read is retried normally at mount',async()=>{
   assert.equal(h.latest().videos[0].title,'Retry result');
 });
 
+test('home category first reads start before DOMContentLoaded and are reused',async()=>{
+  const cases=[
+    {url:'tech',type:'home-category',params:{category:'tech'},payload:{code:0,data:{list:[{bvid:'BVtech',title:'Tech',owner:{name:'Fixture'}}]}},title:'Tech'},
+    {url:'live',type:'home-sections',section:'live',payload:{live:{code:0,data:{recommend_room_list:[{roomid:1,title:'Live'}]}}},title:'Live'},
+    {url:'anime',type:'home-sections',section:'bangumi',payload:{bangumi:{code:0,result:[{episodes:[{episode_id:1,title:'Anime'}]}]}},title:'Anime'},
+  ];
+  for(const item of cases){
+    const h=appHarness(`https://www.bilibili.com/?bilitube_category=${item.url}`,[],{},true);
+    const early=h.pending.filter(request=>request.type===item.type);
+    assert.equal(early.length,1,item.url);
+    if(item.section)assert.deepEqual(Array.from(early[0].params.sections),[item.section]);
+    if(item.params)assert.equal(early[0].params.category,item.params.category);
+    await h.reply(item.type,{},item.payload);
+    await h.finishDocument();
+    assert.equal(h.pending.filter(request=>request.type===item.type).length,0,item.url);
+    const shown=item.section?h.latest().shelves[0].items[0]:h.latest().videos[0];
+    assert.equal(shown.title,item.title,item.url);
+  }
+});
+
+test('home shelf preloads respect settings and release a read disabled before mount',async()=>{
+  const disabled=appHarness('https://www.bilibili.com/?bilitube_category=live',[],{homeLiveShelf:false},true);
+  assert.equal(disabled.pending.some(request=>request.type==='home-sections'),false);
+  await disabled.finishDocument();
+  assert.equal(disabled.pending.some(request=>request.type==='home-sections'),false);
+
+  const settings={};
+  const changed=appHarness('https://www.bilibili.com/?bilitube_category=live',[],settings,true);
+  const early=changed.pending.find(request=>request.type==='home-sections');
+  settings.homeLiveShelf=false;
+  await changed.finishDocument();
+  assert.equal(early.aborted,true);
+  assert.equal(changed.pending.filter(request=>request.type==='home-sections').length,1);
+});
+
+test('failed early home section reads are retried after mounting',async()=>{
+  const h=appHarness('https://www.bilibili.com/?bilitube_category=live',[],{},true);
+  await h.reply('home-sections',{}, {live:{code:-1}});
+  await h.finishDocument();
+  assert.equal(h.pending.filter(request=>request.type==='home-sections').length,1);
+  await h.reply('home-sections',{}, {live:{code:0,data:{recommend_room_list:[{roomid:2,title:'Recovered'}]}}});
+  assert.equal(h.latest().shelves[0].items[0].title,'Recovered');
+});
+
+test('a category preload is cancelled when navigation selects another category',async()=>{
+  const h=appHarness('https://www.bilibili.com/?bilitube_category=live',[],{},true);
+  const old=h.pending.find(request=>request.type==='home-sections');
+  await h.navigate('https://www.bilibili.com/?bilitube_category=tech');
+  assert.equal(old.aborted,true);
+  await h.finishDocument();
+  await h.reply('home-sections',{}, {live:{code:0,data:{recommend_room_list:[{roomid:1,title:'Stale'}]}}});
+  await h.reply('home-category',{category:'tech'}, {code:0,data:{list:[{bvid:'BVnew',title:'New',owner:{name:'Fixture'}}]}});
+  assert.equal(h.latest().category,'tech');
+  assert.equal(h.latest().videos[0].title,'New');
+});
+
 test('other first-page reads reuse matching early requests',async()=>{
   for(const [url,type,expected] of [
     ['https://search.bilibili.com/video?keyword=demo&order=click&duration=2','search',{keyword:'demo',category:'video',order:'click',duration:2}],
@@ -314,6 +370,31 @@ test('favorite route changes without fid select the new owner default folder', a
   await h.reply('favorites',{mid:'456',mediaId:''},favorite('303','New owner default'));
   assert.equal(h.latest().selectedId,'303');
   assert.equal(h.latest().videos[0].title,'New owner default');
+});
+
+test('favorite searches retain their folder and keyword across paging, refresh, and delayed responses', async () => {
+  const h=appHarness('https://space.bilibili.com/123/favlist?fid=101');
+  const payload=(page,title,hasMore=true)=>({mediaId:'101',page,hasMore,folders:{code:0,data:{list:[{id:101,title:'A'}]}},resources:{code:0,data:{medias:[{bvid:`BV${page}${title}`,title}]}}});
+  await h.reply('favorites',{mediaId:'101',keyword:'',page:1},payload(1,'Initial'));
+  h.act('loadMore','favorites');
+  h.act('searchFavorites',' 相机 ');
+  await h.reply('favorites',{mediaId:'101',keyword:'相机',page:1},payload(1,'Match'));
+  await h.reply('favorites',{mediaId:'101',keyword:'',page:2},payload(2,'Stale'));
+  assert.equal(h.latest().searchKeyword,'相机');assert.equal(h.latest().videos[0].title,'Match');
+  h.act('loadMore','favorites');
+  await h.reply('favorites',{mediaId:'101',keyword:'相机',page:2},payload(2,'Next',false));
+  assert.equal(h.latest().videos.map(item=>item.title).join(','),'Match,Next');
+  h.act('refreshCurrent');
+  await h.reply('favorites',{mediaId:'101',keyword:'相机',page:1,forceFresh:true},payload(1,'Refreshed'));
+  h.act('loadMore','favorites');
+  h.act('searchFavorites','');
+  await h.reply('favorites',{mediaId:'101',keyword:'',page:1},payload(1,'All'));
+  await h.reply('favorites',{mediaId:'101',keyword:'相机',page:2},payload(2,'Late'));
+  assert.equal(h.latest().searchKeyword,'');assert.equal(h.latest().videos[0].title,'All');
+  await h.navigate('https://space.bilibili.com/123/favlist?fid=202');
+  assert.equal(h.latest().searchKeyword,'');
+  await h.reply('favorites',{mediaId:'202',keyword:''},favorite('202','Folder B'));
+  assert.equal(h.latest().selectedId,'202');assert.equal(h.latest().videos[0].title,'Folder B');
 });
 
 test('every shell render releases previous preview bindings before removing cards', () => {

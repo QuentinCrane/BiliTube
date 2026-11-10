@@ -170,26 +170,34 @@
       return { layout, main, aside, player, info };
     }
 
-    function discoverAddedRegions(node, descendants = true) {
-      if (!node || node.nodeType !== 1) return;
+    function discoverAddedRegionBatch(nodes, descendants = true, observeApps = false) {
+      if (!nodes.length) return;
       pruneDetachedMarkers();
       const player = first(['#playerWrap','#bilibili-player-wrap','#bilibili-player','#bilibiliPlayer','.bpx-player-container']);
-      if (player && player !== node && player.contains(node)) return;
       const activeScreens = playerScreens();
-      if (activeScreens.some(value => ['wide','web','web-fullscreen','pagefullscreen','page-fullscreen'].includes(value))) return;
+      const nativeMode = activeScreens.some(value => ['wide','web','web-fullscreen','pagefullscreen','page-fullscreen'].includes(value));
       let coreChanged = false;
-      const candidates = [node];
-      if (descendants && node.querySelectorAll) candidates.push(...node.querySelectorAll(REGION_SELECTOR));
-      for (const candidate of candidates) {
-        for (const def of REGION_DEFS) {
-          try {
-            if (candidate.matches && candidate.matches(def.selector)) {
-              const added = mark(candidate, def.marker);
-              if (CORE_MARKERS.has(def.marker) && added) coreChanged = true;
-            }
-          } catch {}
+      let eligible = false;
+      for (const node of nodes) {
+        if (!node || node.nodeType !== 1 || player && player !== node && player.contains(node)) continue;
+        const candidates = [node];
+        if (descendants && node.querySelectorAll) candidates.push(...node.querySelectorAll(observeApps ? `${REGION_SELECTOR},#app` : REGION_SELECTOR));
+        for (const candidate of candidates) {
+          if (observeApps && candidate.matches?.('#app') && regionObserver) regionObserver.observe(candidate, { childList: true, subtree: true });
+          if (nativeMode) continue;
+          eligible = true;
+          if (!candidate.matches?.(REGION_SELECTOR)) continue;
+          for (const def of REGION_DEFS) {
+            try {
+              if (candidate.matches && candidate.matches(def.selector)) {
+                const added = mark(candidate, def.marker);
+                if (CORE_MARKERS.has(def.marker) && added) coreChanged = true;
+              }
+            } catch {}
+          }
         }
       }
+      if (!eligible) return;
       ensureAuthorRow();
       if (coreChanged) {
         const ready = coreRegionsReady();
@@ -198,6 +206,19 @@
           startObservers(ready);
           syncPlayerMode();
         }
+      }
+    }
+
+    function discoverAddedRegions(node, descendants = true) {
+      // Single-node entry used by the class observer: only the markers on this
+      // node can be missing after a Vue class rewrite. Restoring them in place
+      // keeps the running observers untouched; the heavy batch path (player
+      // lookup, region rediscovery, observer restart) belongs to added subtrees.
+      if (!node || node.nodeType !== 1) return;
+      if (descendants) { discoverAddedRegionBatch([node], true); return; }
+      for (const def of REGION_DEFS) {
+        if (node.classList.contains(def.marker)) continue;
+        try { if (node.matches(def.selector)) mark(node, def.marker); } catch {}
       }
     }
 
@@ -221,10 +242,23 @@
           button.classList.add('is-loading');
           button.setAttribute('aria-busy', 'true');
           const nextItem = { bvid:String(button.dataset.bvid || ''), aid:Number(button.dataset.aid || 0), title:String(watchData.title || '') };
-          const next = await callbacks.toggleWatchLater(nextItem, button);
-          button.classList.remove('is-loading');
-          button.removeAttribute('aria-busy');
-          if (typeof next === 'boolean') syncWatchLaterButton(button, next);
+          // A native SPA navigation can change the URL before the bridge has
+          // delivered the next video's metadata.
+          const match = doc.location && doc.location.pathname.match(/^\/video\/(BV[0-9A-Za-z]+|av\d+)(?:\/|$)/i);
+          if (match && /^av/i.test(match[1]) && Number(match[1].slice(2)) !== nextItem.aid) {
+            nextItem.bvid = ''; nextItem.aid = Number(match[1].slice(2));
+          } else if (match && /^BV/i.test(match[1]) && match[1] !== nextItem.bvid) {
+            nextItem.bvid = match[1]; nextItem.aid = 0;
+          }
+          try {
+            const next = await callbacks.toggleWatchLater(nextItem, button);
+            if (typeof next === 'boolean' && button.dataset.bvid === nextItem.bvid) syncWatchLaterButton(button, next);
+          } catch {
+            if (callbacks.showToast) callbacks.showToast(T('watch_later_error','稍后再看操作失败'));
+          } finally {
+            button.classList.remove('is-loading');
+            button.removeAttribute('aria-busy');
+          }
         });
         actions.append(button);
       }
@@ -262,11 +296,13 @@
         return false;
       }
       if(authorRetryTimer){clearTimeout(authorRetryTimer);authorRetryTimer=null;}
-      const main = first(['.bt-native-watch-main','.video-container-v1 > .left-container','#mirror-vdcon.video-container-v1 > .left-container','.video-page-container > .left-container']);
       const creator = watchData && watchData.creator || {};
-      if (!main || !creator.name) return false;
       const signature = [creator.name || '', creator.href || '', creator.avatar || '', creator.following ? '1' : '0'].join('|');
+      // The unchanged fast path must not depend on re-finding the main column;
+      // comment batches call this every delivery and the lookup is pure cost.
       if (authorRow && authorRow.isConnected && authorSignature === signature) { ensureWatchLaterButton(); return true; }
+      const main = first(['.bt-native-watch-main','.video-container-v1 > .left-container','#mirror-vdcon.video-container-v1 > .left-container','.video-page-container > .left-container']);
+      if (!main || !creator.name) return false;
       if (!authorRow || !authorRow.isConnected) {
         authorRow = UI.e('section', 'bt-watch-author-row');
         authorRow.dataset.btOwned = 'true';
@@ -376,14 +412,16 @@
               if (node && node.nodeType === 1 && node.isConnected !== false) added.add(node);
             }
           }
+          const roots = [];
           for (const node of added) {
             let parent=node.parentElement;
             while(parent&&!added.has(parent))parent=parent.parentElement;
             if(parent)continue;
-            const app = node.matches?.('#app') ? node : node.querySelector?.('#app');
-            if (app && regionObserver) regionObserver.observe(app, { childList: true, subtree: true });
-            discoverAddedRegions(node);
+            roots.push(node);
           }
+          // Player state and author readiness are shared by the whole delivery,
+          // not by each of the many sibling nodes in a comment update.
+          discoverAddedRegionBatch(roots, true, true);
         });
         const app = doc.querySelector('#app');
         const appParent = app && app.parentElement;

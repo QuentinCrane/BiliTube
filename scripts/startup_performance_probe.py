@@ -19,11 +19,17 @@ ROOT = Path(__file__).resolve().parents[1]
 PROBE = r"""
 window.__startupProbe={requests:[]};
 const sendOriginal=chrome.runtime.sendMessage;
+const category=new URL(location.href).searchParams.get('bilitube_category')||'all';
+const requestType=category==='all'?'home':['live','anime'].includes(category)?'home-sections':'home-category';
 chrome.runtime.sendMessage=(message,reply)=>{
-  if(message.type!=='home')return sendOriginal(message,reply);
+  if(message.type!==requestType)return sendOriginal(message,reply);
   window.__startupProbe.requests.push(Math.round(performance.now()));
   const items=Array.from({length:12},(_,i)=>({bvid:`BVfixture${i}`,title:`Fixture ${i}`,duration:120,owner:{mid:1,name:'Fixture'}}));
-  setTimeout(()=>reply({ok:true,data:{code:0,data:{item:items}}}),350);
+  const data=category==='all'?{code:0,data:{item:items}}
+    :category==='live'?{live:{code:0,data:{recommend_room_list:items.map((item,i)=>({roomid:i+1,title:item.title,uname:'Fixture'}))}}}
+    :category==='anime'?{bangumi:{code:0,result:[{episodes:items.map((item,i)=>({episode_id:i+1,title:item.title}))}]}}
+    :{code:0,data:{list:items}};
+  setTimeout(()=>reply({ok:true,data}),350);
 };
 document.addEventListener('DOMContentLoaded',()=>{window.__startupProbe.domContentLoaded=Math.round(performance.now())},{once:true});
 const startupObserver=new MutationObserver(()=>{
@@ -41,6 +47,7 @@ def main() -> None:
     parser.add_argument('--browser', default=os.environ.get('BROWSER_EXECUTABLE', r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
     parser.add_argument('--source-dir', default=str(ROOT))
     parser.add_argument('--runs', type=int, default=3)
+    parser.add_argument('--category', choices=['all','tech','live','anime'], default='all')
     parser.add_argument('--output', default=str(ROOT / 'output' / 'startup-performance' / 'report.json'))
     args = parser.parse_args()
     source_root = Path(args.source_dir).resolve()
@@ -64,7 +71,8 @@ def main() -> None:
             page = context.new_page()
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
-            page.goto('https://www.bilibili.com/', wait_until='domcontentloaded')
+            url='https://www.bilibili.com/' + (f'?bilitube_category={args.category}' if args.category!='all' else '')
+            page.goto(url, wait_until='domcontentloaded')
             page.wait_for_function('window.__startupProbe && window.__startupProbe.firstCard', timeout=5000)
             sample = page.evaluate('window.__startupProbe')
             assert len(sample['requests']) == 1, sample
@@ -72,7 +80,7 @@ def main() -> None:
             samples.append(sample)
             context.close()
         browser.close()
-    report = {'kind':'isolated headless browser; 1200 ms deferred script and 350 ms mock API response',
+    report = {'kind':'isolated headless browser; 1200 ms deferred script and 350 ms mock API response', 'category':args.category,
               'runs':args.runs,'samples':samples,
               'medianMs':{key:statistics.median(sample[key] for sample in samples) for key in ('domContentLoaded','shell','firstCard')}}
     output = Path(args.output)

@@ -71,6 +71,7 @@ function harness(options = {}) {
   };
   const controller = Motion.createController(doc, {
     previewActive: () => settings.previewActive,
+    shouldMeasure: options.shouldMeasure,
   });
   const container = nodes => ({ querySelectorAll: () => nodes });
   return { controller, doc, settings, created, Node, container };
@@ -89,6 +90,17 @@ test('measurement captures only visible keyed cards', () => {
   assert.equal(frame.cards.length, 2);
   assert.deepEqual(frame.cards.map(entry => entry.node.__btCardKey), ['BV1', 'BV2']);
   assert.equal(frame.nodes.has(cards[2]), false);
+});
+
+test('measurement skips cards known to be outside the preview observer margin', () => {
+  const offscreen = new Set();
+  const h = harness({shouldMeasure: node => !offscreen.has(node)});
+  const visible = new h.Node('BVvisible', {left:0,top:100});
+  const distant = new h.Node('BVdistant', {left:0,top:5000});
+  offscreen.add(distant);
+  distant.getBoundingClientRect = () => assert.fail('offscreen card must not force a geometry read');
+  const frame = h.controller.measure(h.container([visible,distant]));
+  assert.deepEqual(frame.cards.map(entry => entry.node.__btCardKey),['BVvisible']);
 });
 
 test('measurement is skipped for closed motion, reduced motion, previews and theme reveal', () => {
@@ -154,10 +166,10 @@ test('appended cards fade in once, are capped, and never replay existing ones', 
   const h = harness();
   const existing = new h.Node('BVold', { left: 0, top: 600 });
   const added = Array.from({ length: 12 }, (_, index) => new h.Node(`BVnew${index}`, { left: 0, top: 700 }));
-  const before = new Set([existing]);
-  const count = h.controller.enterNew(h.container([existing, ...added]), before);
+  const count = h.controller.enterNew(added);
   assert.equal(count, Motion.LIMITS.maxNewCards);
   assert.equal(h.created.length, Motion.LIMITS.maxNewCards);
+  assert.equal(existing.own.length, 0);
   assert.equal(h.created[0].keyframes[0].opacity, 0);
   assert.match(h.created[0].keyframes[0].transform, /translateY/);
   assert.match(h.created[0].keyframes[0].transform, /scale\(/);
@@ -178,13 +190,13 @@ test('cards without the Web Animations API degrade to an instant update', () => 
 
 test('the shell brackets a same-route reconcile with one measured motion frame', () => {
   const calls = [];
+  let appended = false;
   const motion = {
     allowed: () => true,
     measure: () => { calls.push('measure'); return { version: 1, cards: [], nodes: new Set() }; },
     play: () => { calls.push('play'); return 0; },
     prepare: () => calls.push('prepare'),
-    enterNew: () => calls.push('enterNew'),
-    snapshotCards: () => new Set(),
+    enterNew: cards => { assert.equal(cards, appended); calls.push('enterNew'); },
     cancel: () => calls.push('cancel'),
   };
   class Element {
@@ -210,7 +222,7 @@ test('the shell brackets a same-route reconcile with one measured motion frame',
     createSidebar: () => new Element('aside'),
     renderHome: () => {},
     updateFeedStatus: () => {},
-    appendFeed: () => false,
+    appendFeed: () => appended,
   };
   const Reconcile = {
     createReuse: () => null,
@@ -241,6 +253,10 @@ test('the shell brackets a same-route reconcile with one measured motion frame',
   calls.length = 0;
   shell.render('home', { renderKey: 'k', mid: '1' });
   assert.deepEqual(calls, ['measure', 'update', 'prepare', 'play']);
+  calls.length = 0;
+  appended = [new Element('article')];
+  shell.render('home', { renderKey: 'k', mid: '1', append: true });
+  assert.deepEqual(calls, ['enterNew']);
 });
 test('motion.js is injected before shell.js and both share the same contract', () => {
   const manifest = JSON.parse(read('manifest.json'));
@@ -252,7 +268,7 @@ test('motion.js is injected before shell.js and both share the same contract', (
   assert.match(shell, /options\.motion/);
   assert.match(shell, /motion\.measure\(outlet\)/);
   assert.match(shell, /afterApply:\s*\(\)\s*=>\s*motion\.play\(frame\)/);
-  assert.match(shell, /motion\.enterNew\(outlet,before\)/);
+  assert.match(shell, /motion\.enterNew\(appended\)/);
   assert.match(shell, /is-route-entering/);
   assert.match(read('src/core/reconcile.js'), /hooks\.afterApply/);
   assert.match(read('src/styles/core.css'), /\.is-route-entering>:/);
@@ -264,5 +280,5 @@ test('theme reveal never overlaps a local flip', () => {
   assert.match(app, /previewActive:\(\)\s*=>\s*Boolean\(preview&&preview\.isActive/);
   const preview = read('src/core/preview.js');
   assert.match(preview, /function isActive\(\)/);
-  assert.match(preview, /isActive, seekTime/);
+  assert.match(preview, /isActive, isKnownOffscreen, seekTime/);
 });

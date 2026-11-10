@@ -177,6 +177,46 @@
     const request = data.request || {};
     const csrf = String(request.csrf || '');
     const mid = String(request.mid || '').replace(/\D/g, '');
+    if (request.action === 'watchlater-read') {
+      let result = null;
+      for (const path of ['/x/v2/history/toview/web','/x/v2/history/toview']) {
+        try {
+          const response = await fetch(`https://api.bilibili.com${path}`, {credentials:'include',cache:'no-store'});
+          result = await response.json();
+          if (result && result.code === 0) break;
+        } catch {}
+      }
+      post('write-result',{ id, result });
+      return;
+    }
+    if (request.action === 'watchlater-toggle') {
+      let aid = String(request.aid || '').replace(/\D/g, '');
+      const bvid = /^BV[0-9A-Za-z]+$/.test(String(request.bvid || '')) ? String(request.bvid) : '';
+      if (!csrf || !aid && !bvid) {
+        post('write-result',{ id, result:{ code:-400, message:'' } });
+        return;
+      }
+      try {
+        if (!aid) {
+          const response = await fetch(`https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`, {credentials:'include'});
+          const view = await response.json();
+          aid = String(view && view.data && view.data.aid || '').replace(/\D/g, '');
+        }
+        if (!aid) throw new Error('Missing video ID');
+        const endpoint = request.add !== false ? 'add' : 'del';
+        const form = new URLSearchParams({aid,csrf});
+        const response = await fetch(`https://api.bilibili.com/x/v2/history/toview/${endpoint}`, {
+          method:'POST', credentials:'include',
+          headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json, text/plain, */*'},
+          body:form.toString(),
+        });
+        const result = await response.json();
+        post('write-result',{ id, result:{ ...result, aid:Number(aid), bvid } });
+      } catch (error) {
+        post('write-result',{ id, result:{ code:-1, message:String(error && error.message || error) } });
+      }
+      return;
+    }
     if (request.action !== 'follow' || !mid || !csrf) {
       post('write-result',{ id, result:{ code:-400, message:'' } });
       return;
@@ -196,16 +236,22 @@
   }
 
 
+  function nativeVideoIdentity() {
+    const video=window.__INITIAL_STATE__ && window.__INITIAL_STATE__.videoData;
+    return video?`${video.bvid||''}:${video.aid||''}`:'';
+  }
   let lastHref = location.href;
   let lastHydrated = nativeAppReady();
+  let lastVideoIdentity = nativeVideoIdentity();
   function emitNavigation() {
     lastHref = location.href;
+    lastVideoIdentity = nativeVideoIdentity();
     post('navigation', safeState());
   }
   function emitNavigationIfChanged() {
     if (location.href === lastHref) {
-      const hydrated=nativeAppReady();
-      if(hydrated!==lastHydrated){lastHydrated=hydrated;post('state',safeState());}
+      const hydrated=nativeAppReady(),videoIdentity=nativeVideoIdentity();
+      if(hydrated!==lastHydrated||videoIdentity!==lastVideoIdentity){lastHydrated=hydrated;lastVideoIdentity=videoIdentity;post('state',safeState());}
       return;
     }
     emitNavigation();

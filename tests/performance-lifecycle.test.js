@@ -8,6 +8,7 @@ function harness() {
   const observed = new Set();
   const requests = [];
   const docListeners = new Map();
+  let notifyIntersection;
   const document = {hidden:false,addEventListener:(type,fn)=>docListeners.set(type,fn),removeEventListener:type=>docListeners.delete(type)};
   let nextTimer = 0;
   const context = vm.createContext({
@@ -15,6 +16,7 @@ function harness() {
     setTimeout(fn) { timers.set(++nextTimer, fn); return nextTimer; },
     clearTimeout(id) { timers.delete(id); },
     IntersectionObserver: class {
+      constructor(callback) { notifyIntersection = callback; }
       observe(card) { observed.add(card); }
       unobserve(card) { observed.delete(card); }
       disconnect() { observed.clear(); }
@@ -35,7 +37,8 @@ function harness() {
       count() { return [...listeners.values()].reduce((sum, set) => sum + set.size, 0); },
     };
   }
-  return { controller, card, timers, observed, requests, document, docListeners };
+  return { controller, card, timers, observed, requests, document, docListeners,
+    intersection: (card, isIntersecting) => notifyIntersection([{ target:card, isIntersecting }]) };
 }
 
 test('preview destruction releases all card listeners, observations and pending work', () => {
@@ -96,6 +99,24 @@ test('reconciliation prunes only detached preview cards', () => {
   h.controller.bind(retained,{bvid:'BVkeep'},{});h.controller.bind(removed,{bvid:'BVremoved'},{});
   removed.fire('pointerenter');h.controller.prune();assert.equal(removed.count(),0);assert.equal(h.timers.size,0);
   assert.equal(retained.count(),3);assert.equal(h.observed.size,1);h.controller.destroy();
+});
+
+test('motion can reuse preview visibility and unknown or unbound cards remain eligible', () => {
+  const h=harness(),card=h.card();
+  h.controller.bind(card,{bvid:'BVvisible'},{});
+  assert.equal(h.controller.isKnownOffscreen(card),false);
+  h.intersection(card,false);
+  assert.equal(h.controller.isKnownOffscreen(card),true);
+  h.intersection(card,true);
+  assert.equal(h.controller.isKnownOffscreen(card),false);
+  h.intersection(card,false);
+  h.controller.destroy();
+  assert.equal(h.controller.isKnownOffscreen(card),false);
+  h.intersection(card,false); // a queued notification after cleanup is stale
+  assert.equal(h.controller.isKnownOffscreen(card),false);
+  h.controller.bind(card,{bvid:'BVagain'},{});
+  assert.equal(h.controller.isKnownOffscreen(card),false);
+  h.controller.destroy();
 });
 
 test('hidden tabs cancel pending previews and reject new hover work without removing card bindings', () => {

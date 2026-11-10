@@ -28,9 +28,9 @@
       outlet.setAttribute('aria-busy',String(Boolean(data.loading||data.refreshing)));
       if(data.append&&previousRoute===route&&UI.appendFeed){
         // Pagination reads as "the list grew", never as "the page re-entered".
-        const before=motion?motion.snapshotCards(outlet):null;
-        if(UI.appendFeed(outlet,route,payload,previousPayload,callbacks)){
-          if(motion) motion.enterNew(outlet,before);
+        const appended=UI.appendFeed(outlet,route,payload,previousPayload,callbacks);
+        if(appended){
+          if(motion) motion.enterNew(appended);
           previousPayload=payload;return;
         }
       }

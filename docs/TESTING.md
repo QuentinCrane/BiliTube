@@ -131,11 +131,15 @@ python scripts/watch_navigation_probe.py --clicks 5
 
 在临时、未登录 Edge 配置中加载实际扩展，关闭推荐视频新标签页选项后点击原生右侧推荐链接，记录每次切换的截图、播放器位置、媒体状态与 document timeOrigin，输出在 `output/watch-navigation/`。相同 timeOrigin 表示同页导航；检查要求完成指定次数且播放器保持在标题上方。实际媒体状态单独记录，网络失败或视频权限可能影响播放。
 
-`watch_layout_smoke.py` 同时模拟原站清除播放器 class、将原生高度设为 0、替换外层容器和延迟插入评论；检查播放器位置、媒体节点身份、mini / wide / web 模式退出后的恢复以及销毁后监听释放。
+`watch_layout_smoke.py` 同时模拟原站清除播放器、工具栏和简介的 class，将原生高度设为 0、替换外层容器和延迟插入评论；检查原生区域顺序与点击、媒体节点身份、mini / wide / web 模式退出后的恢复以及销毁后监听释放。
 
-`python scripts/watch_controls_smoke.py` 使用离线播放器控件夹具检查桌面悬浮样式、点击命中、原生控件隐藏状态和播放器模式隔离。加上 `--live` 会在临时未登录的 Edge 配置中加载公开 Bilibili 视频和本地扩展，验证播放、音量、时间输入、清晰度菜单、设置开关及宽屏和网页全屏切换；结果不代表登录态验收。
+`python scripts/watch_later_smoke.py` 使用模拟账号和接口数据，检查稍后再看的同站点读取与写入回退、加入和移除、视频切换及读取失败处理；不会访问或修改真实账号的数据。
+
+`python scripts/watch_controls_smoke.py` 使用离线播放器控件夹具检查桌面悬浮样式、动态出现的字幕和可选控件的垂直对齐、原生控件的显示状态与菜单交互。加上 `--live` 会在临时未登录的 Edge 配置中加载公开 Bilibili 视频和本地扩展，验证字幕菜单、播放、音量、时间输入、清晰度菜单及播放器模式切换；结果不代表登录态字幕切换验收。
 
 `python scripts/recommendation_navigation_smoke.py` 使用临时未登录配置检查实际扩展中的搜索焦点、新标签页设置保存和同步，以及首页与播放页推荐的鼠标和键盘导航。
+
+`python scripts/favorites_search_smoke.py` 使用隔离接口数据验证当前收藏夹搜索、分页、清除、无匹配结果、输入法、刷新与切换收藏夹；同时检查迟到响应隔离和搜索草稿保留。
 
 ### Refresh, failure recovery and responsive layout
 
