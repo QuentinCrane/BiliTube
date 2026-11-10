@@ -52,6 +52,20 @@ test('history replacement request is retired in favor of native history', async 
   assert.equal(h.urls.length,0);
 });
 
+test('watch-later mutations and page-origin fallback invalidate cached lists', async () => {
+  let reads=0;
+  const h=createHarness(async url=>{
+    if(url.endsWith('/history/toview/web'))reads++;
+    return {ok:true,json:async()=>url.endsWith('/history/toview/add')?{code:-101}:{code:0,data:{list:[]}}};
+  });
+  await h.request('watchlater');await h.request('watchlater');
+  assert.equal(reads,1);
+  await h.request('watchlater-toggle',{bvid:'BVtest',aid:42,csrf:'fixture',add:true});
+  await h.request('watchlater');assert.equal(reads,2);
+  await h.request('watchlater-invalidate');
+  await h.request('watchlater');assert.equal(reads,3);
+});
+
 test('home page two generates a distinct fresh_idx request', async () => {
   const h=createHarness();
   await h.request('home',{page:2});
@@ -60,6 +74,26 @@ test('home page two generates a distinct fresh_idx request', async () => {
   const url=new URL(requestUrl);
   assert.equal(url.searchParams.get('fresh_idx'),'2');
   assert.equal(url.searchParams.get('ps'),'30');
+});
+
+test('favorite search is scoped to one folder and caches each keyword and page separately', async () => {
+  const h=createHarness();
+  const params={mid:'123',mediaId:'42',keyword:'  相机 & 猫  ',page:1};
+  await h.request('favorites',params);
+  await h.request('favorites',params);
+  await h.request('favorites',{...params,page:2});
+  await h.request('favorites',{...params,keyword:'其他'});
+  await h.request('favorites',{...params,mediaId:'43'});
+  const urls=h.urls.filter(url=>url.includes('/x/v3/fav/resource/list')).map(url=>new URL(url));
+  assert.equal(urls.length,4);
+  assert.equal(urls[0].searchParams.get('media_id'),'42');
+  assert.equal(urls[0].searchParams.get('type'),'0');
+  assert.equal(urls[0].searchParams.get('keyword'),'相机 & 猫');
+  assert.equal(urls[0].searchParams.get('pn'),'1');
+  assert.equal(urls[1].searchParams.get('pn'),'2');
+  assert.equal(urls[1].searchParams.get('keyword'),'相机 & 猫');
+  assert.equal(urls[2].searchParams.get('keyword'),'其他');
+  assert.equal(urls[3].searchParams.get('media_id'),'43');
 });
 
 test('home category uses a public region ranking endpoint', async () => {

@@ -1,11 +1,11 @@
-# BiliTube 0.12.5 Release Notes Draft
+# BiliTube 0.12.6 Release Notes Draft
 
-本文汇总 0.12.5 的候选发布文案、验证证据和发布待办。
+本文汇总 0.12.6 的候选发布文案、验证证据和发布待办。
 
 ## Current source
 
 - Repository: `https://github.com/QuentinCrane/BiliTube`
-- Manifest version: `0.12.5`
+- Manifest version: `0.12.6`
 - Extension type: Chromium / Edge Manifest V3
 - License: MIT
 - Attribution: `QuentinCrane`
@@ -19,22 +19,22 @@
 - Native-first Watch：Bilibili 原生播放器、toolbar、简介、评论和相关推荐继续保留。
 - Hover Preview、seek rail、稍后再看快捷按钮、深浅色主题和可配置动效。
 
-## Fixes in v0.12.5
+## Changes in v0.12.6
 
-- 播放页内点击推荐视频后，跨视频路由复用 Watch 装饰器，并跟踪 SPA 根节点替换，避免播放器失去布局标记。
-- 视频页首屏预布局等待原站初始化；作者信息使用占位接续，减少播放器、标题和推荐列的布局跳动。
-- 首页、搜索、动态、收藏夹、稍后再看和频道页面增加刷新与失败重试，并保护现有内容免受旧响应覆盖。
-- 补齐搜索筛选、空状态和分页行为；优化深浅主题切换、窄窗口抽屉和卡片布局。
+- 当前收藏夹支持按关键词搜索、清除和结果分页；搜索、刷新及切换收藏夹时隔离旧响应。
+- 播放页的原生点赞栏和简介在原站更新类名后继续显示在评论之前；同页切换视频后“稍后再看”使用当前视频身份，并支持同站点登录凭据回退。
+- 列表更新复用原卡片与媒体节点；分页动画只处理新增卡片，长列表重排跳过已知离屏卡片，Watch 按批处理原生区域更新。
+- YouTube Desktop 基线使用 Roboto 拉丁字体，完善英文界面的文案与数量格式；毛玻璃外观可在设置中开启。
 
 ## Validation
 
 ```text
-node --test tests/*.test.js       249 passed
-node scripts/verify.mjs           passed (27 manifest resources, 22 JavaScript files)
+node --test tests/*.test.js       315 passed
+node scripts/verify.mjs           passed (28 manifest resources, 22 JavaScript files)
 git diff --check                  passed
 ```
 
-浏览器定向验证：临时未登录 Edge 配置完成相关推荐同页切换，URL 保持同一文档，播放器留在标题上方，视频节点持续播放。完整登录态人工验收待执行，验收范围见 [`PAGE_AUDIT.md`](../PAGE_AUDIT.md)。
+浏览器定向验证覆盖首页进入播放页、相关推荐同页切换和公开收藏夹接口检索；隔离夹具覆盖收藏夹搜索、稍后再看、播放器布局和刷新。完整登录态人工验收待执行，验收范围见 [`PAGE_AUDIT.md`](../PAGE_AUDIT.md)。
 
 ## Known limitations
 

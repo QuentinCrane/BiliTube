@@ -71,10 +71,7 @@ test('watch later and favorites provide usable library actions and selected coll
   assert.match(ui,/selectedFolder/);
 });
 
-test('favorites paging is page-aware and not hard-coded to pn=1', () => {
-  const bg = read('src/background.js');
-  assert.match(bg,/params\.page/);
-  assert.match(bg,/pn=\$\{page\}/);
+test('favorites maintains paging and end-of-list state', () => {
   const app = read('src/core/app.js');
   assert.match(app,/favoritePage/);
   assert.match(app,/favoriteHasMore/);

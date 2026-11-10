@@ -98,6 +98,22 @@ def main():
             same(before, geometry(page))
             assert page.locator('.bt-watch-author-row').count() == 1
             assert page.evaluate("__native===document.querySelector('#native-video')&&__toolbar===document.querySelector('#arc_toolbar_report')")
+            # Bilibili's hydration may rewrite these non-core classes after
+            # the decorator has marked them. Keep the native nodes and their
+            # interactions above comments even when our markers disappear.
+            page.evaluate("""() => {
+              document.querySelector('#arc_toolbar_report').className='video-toolbar-container';
+              document.querySelector('#v_desc').className='video-desc';
+              document.querySelector('#arc_toolbar_report button').addEventListener('click',()=>window.__nativeLikeClicked=true);
+            }""")
+            settle(page)
+            assert page.locator('#arc_toolbar_report').evaluate("node=>getComputedStyle(node).order") == '3'
+            assert page.locator('#v_desc').evaluate("node=>getComputedStyle(node).order") == '4'
+            assert page.locator('#arc_toolbar_report').bounding_box()['y'] < page.locator('#v_desc').bounding_box()['y'] < page.locator('#comment-module').bounding_box()['y']
+            page.locator('#arc_toolbar_report button').first.click()
+            assert page.evaluate('window.__nativeLikeClicked === true')
+            page.evaluate('window.scrollTo(0,0)')
+            settle(page)
             if width > 900:
                 assert page.locator('.recommend-list-v1').is_visible()
                 assert page.locator('.recommend-list-v1').bounding_box()['y'] == 72

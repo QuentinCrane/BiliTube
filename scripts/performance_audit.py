@@ -11,13 +11,18 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 SETUP = r"""() => {
-  window.counts = {created:0, queries:0};
+  window.counts = {created:0, queries:0, articleMatches:0};
   const create = document.createElement.bind(document);
   document.createElement = (...args) => {counts.created++; return create(...args)};
   for (const proto of [Document.prototype, Element.prototype]) {
     for (const name of ['querySelector', 'querySelectorAll']) {
       const original = proto[name];
-      proto[name] = function(...args) {counts.queries++; return original.apply(this,args)};
+      proto[name] = function(...args) {
+        counts.queries++;
+        const result=original.apply(this,args);
+        if(name==='querySelectorAll'&&args[0]==='article')counts.articleMatches+=result.length;
+        return result;
+      };
     }
   }
   window.cards = Array.from({length:500}, (_,i)=>({bvid:`BVperf${i}`,kind:'video',
@@ -59,6 +64,9 @@ def main():
         page.add_style_tag(path=str(source_root/'src/styles/core.css'))
         for module in ['ui','reconcile','shell','preview-model','preview','theme','extract','watch','native-adapter']:
             page.add_script_tag(path=str(source_root/f'src/core/{module}.js'))
+        motion_available=(source_root/'src/core/motion.js').is_file()
+        if motion_available:
+            page.add_script_tag(path=str(source_root/'src/core/motion.js'))
         page.evaluate(SETUP)
         page.wait_for_timeout(700)
         report['render'] = {}
@@ -158,15 +166,40 @@ def main():
           const nodes=Array.from({length:200},()=>document.createElement('span'));
           counts.queries=0;host.append(...nodes);await new Promise(resolve=>setTimeout(resolve,0));
           const playerQueries=counts.queries;
-          const related=document.querySelector('.recommend-list-v1');
+          // Comments often arrive as many siblings in one observer delivery.
+          // Count the work for the entire batch, including a late region that
+          // still needs to be discovered while the comment nodes are processed.
+          const comments=document.querySelector('#comment-module');
+          const entries=Array.from({length:200},()=>{
+            const entry=document.createElement('div');entry.innerHTML='<span>Comment</span>';return entry;
+          });
           const fragment=document.createElement('div');fragment.innerHTML='<div class="recommend-list"><span>New related list</span></div>';
-          document.querySelector('.right-container-inner').append(fragment);
+          const aside=document.querySelector('.right-container-inner');
+          counts.queries=0;comments.append(...entries);aside.append(fragment);
           await new Promise(resolve=>setTimeout(resolve,0));
+          const commentBatchQueries=counts.queries;
           if(!fragment.firstChild.classList.contains('bt-native-watch-related'))throw Error('Missed late region');
           const info=document.querySelector('.video-info-container');info.className='video-info-container';
           await new Promise(resolve=>setTimeout(resolve,0));
           if(!info.classList.contains('bt-native-watch-info'))throw Error('Lost info marker');
-          watch.destroy();return {playerMutationQueries:playerQueries,lateRegions:true,classRestoration:true};
+          // Replacing the native app must reattach observation to the new
+          // tree, including after a native wide-player round trip.
+          const replacement=document.createElement('div');replacement.id='app';
+          replacement.innerHTML='<div class="video-container-v1"><div class="left-container"><div id="playerWrap"><div class="bpx-player-container" data-screen="normal"></div></div><div class="video-info-container"></div></div><div class="right-container"><div class="right-container-inner"></div></div></div>';
+          document.querySelector('#app').replaceWith(replacement);
+          await new Promise(resolve=>setTimeout(resolve,0));
+          const replacementReady=replacement.querySelector('.left-container').classList.contains('bt-native-watch-main')&&replacement.querySelector('#playerWrap').classList.contains('bt-native-watch-player-host');
+          const screen=replacement.querySelector('.bpx-player-container');screen.dataset.screen='wide';
+          await new Promise(resolve=>setTimeout(resolve,60));
+          const wide=document.documentElement.classList.contains('bt-player-wide');
+          screen.dataset.screen='normal';await new Promise(resolve=>setTimeout(resolve,60));
+          const normal=!document.documentElement.classList.contains('bt-player-wide');
+          const late=document.createElement('div');late.className='recommend-list';
+          replacement.querySelector('.right-container-inner').append(late);
+          await new Promise(resolve=>setTimeout(resolve,0));
+          const observedAfterReplacement=late.classList.contains('bt-native-watch-related');
+          watch.destroy();return {playerMutationQueries:playerQueries,commentBatchQueries,lateRegions:true,classRestoration:true,
+            replacementReady,wide,normal,observedAfterReplacement};
         }""")
         assert not errors, errors
         report['adapter'] = page.evaluate(r"""async () => {
@@ -189,8 +222,48 @@ def main():
         if not args.measure_only:
             assert report['loadedThumbnailAnimations']==0, 'Loaded thumbnails still animate invisibly'
             assert report['watch']['playerMutationQueries']==0, 'Player-only changes triggered region scans'
+            assert report['watch']['commentBatchQueries']<=250, 'Comment batch triggered excessive region queries'
+            assert all(report['watch'][key] for key in ['replacementReady','wide','normal','observedAfterReplacement']), report['watch']
             assert report['adapter']==dict(created=0,drawerRetained=True,focusRetained=True,ownMutationQueries=0,lateHidden=True,restored=True), report['adapter']
         report['checks'].append('Watch ignores player churn while discovering late regions and restoring Vue class changes')
+        # Measure the real shell with motion enabled, not only the no-motion
+        # reconcile fixture above. A page append must keep existing media and
+        # animate only newly inserted cards.
+        if motion_available:
+            page.evaluate(r"""() => {
+              document.body.replaceChildren();
+              window.paginationMotion=BiliTubeMotion.createController(document);
+              window.paginationShell=BiliTubeShell.createController(document,{motion:paginationMotion});
+              window.paginationData={href:'https://www.bilibili.com/',videos:cards,hasMore:true,shelves:[]};
+              paginationShell.ensure(paginationData,{});paginationShell.render('home',paginationData);
+            }""")
+            page.wait_for_timeout(700)
+            report['pagination'] = page.evaluate(r"""() => {
+          window.scrollTo(0,document.documentElement.scrollHeight);
+          const first=document.querySelector('.bt-video-card'),image=first.querySelector('img');
+          const added=Array.from({length:30},(_,i)=>({bvid:`BVnew${i}`,kind:'video',
+            title:`New ${i}`,href:`https://www.bilibili.com/video/BVnew${i}`,
+            author:'Fixture',thumbnail:'https://fixture.invalid/thumb.svg'}));
+          const animated=[],animate=Element.prototype.animate;
+          Element.prototype.animate=function(...args){animated.push(this);return animate.apply(this,args);};
+          counts.queries=counts.articleMatches=0;
+          const start=performance.now();
+          try { paginationShell.render('home',{...paginationData,videos:[...cards,...added],append:true}); }
+          finally { Element.prototype.animate=animate; }
+          const ms=performance.now()-start,articleMatches=counts.articleMatches,queries=counts.queries;
+          const current=[...document.querySelectorAll('.bt-video-card')];
+          const result={ms,articleMatches,queries,cardCount:current.length,
+            cardRetained:current[0]===first,imageRetained:first.querySelector('img')===image,
+            animatedNewOnly:animated.every(node=>current.slice(500).includes(node)),animated: animated.length};
+          paginationShell.destroy();paginationMotion.destroy();return result;
+            }""")
+            if not args.measure_only:
+                assert report['pagination']['cardCount']==530 and report['pagination']['cardRetained'] and report['pagination']['imageRetained'] and report['pagination']['animatedNewOnly'] and report['pagination']['animated']>0, report['pagination']
+                assert report['pagination']['articleMatches']==0, 'Pagination scanned existing cards for motion'
+            report['checks'].append('Pagination preserves existing cards and media and only animates new cards')
+        else:
+            report['pagination']={'skipped':'source snapshot has no motion module'}
+        assert not errors, errors
         context.close();browser.close()
     output = Path(args.output);output.parent.mkdir(parents=True,exist_ok=True)
     output.write_text(json.dumps(report,indent=2),encoding='utf-8')

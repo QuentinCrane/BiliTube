@@ -233,7 +233,14 @@ async function handle(type, params = {}) {
     if (current && current.code === 0) return current;
     return json('https://api.bilibili.com/x/v2/history/toview');
   });
+  if (type === 'watchlater-invalidate') {
+    cache.delete('watchlater');
+    return { code:0 };
+  }
   if (type === 'watchlater-toggle') {
+    // A same-site fallback may complete the write even if this request fails.
+    // Invalidate any read already in flight before attempting the mutation.
+    cache.delete('watchlater');
     const csrf = String(params.csrf || '').trim();
     const identity = await resolveVideoIdentity(params);
     const aid = digits(identity && identity.aid);
@@ -269,13 +276,14 @@ async function handle(type, params = {}) {
   if (type === 'favorites') {
     const mid = digits(params.mid); if (!mid) return { mid:'', folders:null, resources:null, mediaId:'', page:1, hasMore:false };
     const page = Math.max(1, Math.min(100, Number(params.page || 1) || 1));
+    const keyword = String(params.keyword || '').trim();
     const folders = await cached(`favorite-folders:${mid}`, 30000, () => json(`https://api.bilibili.com/x/v3/fav/folder/created/list-all?up_mid=${encodeURIComponent(mid)}`));
     let mediaId = digits(params.mediaId);
     if (!mediaId && folders && folders.code === 0 && folders.data && Array.isArray(folders.data.list) && folders.data.list[0]) mediaId = digits(folders.data.list[0].id);
     let resources = null;
     if (mediaId) {
-      const q = `media_id=${encodeURIComponent(mediaId)}&pn=${page}&ps=30&keyword=&order=mtime&type=0&tid=0&platform=web`;
-      resources = await cached(`favorite-resources:${mediaId}:${page}`, 15000, () => json(`https://api.bilibili.com/x/v3/fav/resource/list?${q}`));
+      const q = new URLSearchParams({media_id:mediaId,pn:String(page),ps:'30',keyword,order:'mtime',type:'0',tid:'0',platform:'web'});
+      resources = await cached(`favorite-resources:${mediaId}:${page}:${encodeURIComponent(keyword)}`, 15000, () => json(`https://api.bilibili.com/x/v3/fav/resource/list?${q}`));
     }
     const hasMore = Boolean(resources && resources.code === 0 && resources.data && resources.data.has_more);
     return { mid, folders, resources, mediaId, page, hasMore };

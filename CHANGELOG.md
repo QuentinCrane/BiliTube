@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.12.6
+
+- 收藏夹页面新增当前收藏夹内搜索，支持清除、结果分页和无匹配提示；切换收藏夹、刷新或连续搜索时隔离旧请求，保留正在输入的草稿。
+- 修复 Bilibili 重写播放页元素类名后，原生点赞栏和简介被排到评论区下方的问题，继续使用原生互动节点。
+- 修复同页切换视频后“稍后再看”可能指向上一条视频的问题；后台读取或写入遇到登录凭据限制时使用同站点回退，读取失败时提示重试。
+- 优化 Watch 区域批量观察、长列表重排测量和分页动效，减少重复 DOM 查询；保留卡片、图片和预览的生命周期保护。
+- 新增收藏夹搜索、稍后再看和播放页布局浏览器回归，覆盖关键词分页、延迟响应、输入法和原生区域类名更新。
 - 英文词表对齐 YouTube 说法：`Popular → Trending`、`Your content → You`、`My channel → Your channel`、`Favorites → Playlists`、`Knowledge → Learning`、`Games → Gaming`、`Follow → Subscribe`、`Log in → Sign in`、`Updates → Posts`、`Most viewed → View count`、`Newest → Upload date` 等 52 条，只改 `_locales/en`。顺带修掉搜索落地页把本地化标签当搜索词的问题——英文界面点「Trending」原本会去 B 站搜 "Trending"。
 - 随扩展打包 Roboto（latin 子集变量字体，43 KB，Apache-2.0，`assets/fonts/`）。`--bt-font` 以 Roboto 开头，设置页共用同一份；`web_accessible_resources` 只暴露这一个字体文件，加载失败自动回落系统字体。此前英文界面实际渲染的是 Segoe UI，和 YouTube 的 Roboto 有明显差异。
 - 默认外观改为 YouTube 基线：纯白、中性灰、`#065fd4` 蓝，毛玻璃改成在设置里显式开启（此前默认开启）。浅色基线的强调色从 B 站青 `#00aeec` 换成 YouTube 蓝，导航激活态字重 600 → 500，分组标题在基线模式下 500。已保存过设置的环境保留原值，需要手动关一次毛玻璃。
